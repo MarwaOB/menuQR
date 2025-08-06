@@ -4,13 +4,28 @@
 START TRANSACTION;
 
 -- ======================
--- USERS (Staff only)
+-- RESTAURANTS
 -- ======================
-CREATE TABLE User (
+CREATE TABLE Restaurant (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    role ENUM('staff') NOT NULL DEFAULT 'staff',
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(50),
+    address TEXT,
+    description TEXT,
     token VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE RestaurantLogo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    restaurant_id INT,
+    image_url VARCHAR(255) NOT NULL,
+    public_id VARCHAR(255) DEFAULT NULL,
+    FOREIGN KEY (restaurant_id) REFERENCES Restaurant(id) ON DELETE CASCADE
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -21,9 +36,8 @@ CREATE TABLE User (
 CREATE TABLE Menu (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    date DATE NOT NULL UNIQUE,
-    created_by INT,
-    FOREIGN KEY (created_by) REFERENCES User(id)
+    date DATE NOT NULL,
+   -- UNIQUE(date), -- One menu per date per restaurant
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -43,7 +57,7 @@ CREATE TABLE Dish (
     section_id INT,
     menu_id INT,
     FOREIGN KEY (section_id) REFERENCES Section(id),
-    FOREIGN KEY (menu_id) REFERENCES Menu(id)
+    FOREIGN KEY (menu_id) REFERENCES Menu(id) ON DELETE CASCADE
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -52,7 +66,9 @@ CREATE TABLE DishImage (
     id INT AUTO_INCREMENT PRIMARY KEY,
     dish_id INT,
     image_url VARCHAR(255) NOT NULL,
-    FOREIGN KEY (dish_id) REFERENCES Dish(id)
+    local_filename VARCHAR(255) DEFAULT NULL,
+    public_id VARCHAR(255) DEFAULT NULL,
+    FOREIGN KEY (dish_id) REFERENCES Dish(id) ON DELETE CASCADE
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
