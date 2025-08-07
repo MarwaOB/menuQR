@@ -6,6 +6,7 @@ import MenusTab from './components/dashboard/MenusTab';
 import AnalyticsTab from './components/dashboard/AnalyticsTab';
 import MenuDetailsPage from './pages/MenuDetailsPage';
 import AddNewMenuPage from './pages/AddNewMenuPage';
+import CreateFromExisting from './pages/CreateFromExisting';
 
 const App = () => {
   return (
@@ -18,7 +19,8 @@ const App = () => {
           <Route path="analytics" element={<AnalyticsTab />} />
 
           <Route path="menus/:id" element={<MenuDetailsPage />} />
-          <Route path="/menus/new" element={<AddNewMenuPage />} />
+          <Route path="/menus/newScratch" element={<AddNewMenuPage />} />
+          <Route path="/menus/newExisting" element={<CreateFromExisting />} />
         </Route>
       </Routes>
     </Router>

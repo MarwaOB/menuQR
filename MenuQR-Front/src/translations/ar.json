@@ -65,7 +65,73 @@
   "add_first_dish": "أضف أول طبق للبدء",
   "add_new_dish": "أضف طبق جديد",
   "update_dish": "تحديث الطبق",
-  "menu_qr_code_for": "رمز QR لقائمة"
+  "menu_qr_code_for": "رمز QR لقائمة",
+  "create_from_existing_menu": "إنشاء من قائمة موجودة",
+  "new_menu_name": "اسم القائمة الجديدة",
+  "edit_dishes": "تعديل الأطباق",
+  "no_dishes": "لا توجد أطباق في هذا القسم",
+
+  "error_deleting_dish": "خطأ في حذف الطبق",
+  "confirm_delete_dish": "حذف الطبق؟",
+  "delete_dish_warning": "هل أنت متأكد من حذف \"{{dishName}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+  
+  
+  "dish_form": {
+    "dish_name": "اسم الطبق",
+    "dish_name_placeholder": "أدخل اسم الطبق",
+    "description": "الوصف",
+    "description_placeholder": "أدخل وصف الطبق",
+    "price": "السعر",
+    "price_placeholder": "أدخل السعر (مثال: 1200 د.ج)",
+    "category": "القسم",
+    "select_category": "اختر قسماً",
+    "image": "الصورة",
+    "image_placeholder": "رابط الصورة (اختياري)",
+    "add_dish": "إضافة طبق",
+    "update_dish": "تحديث الطبق",
+    "dish_name_required": "اسم الطبق مطلوب",
+    "description_required": "الوصف مطلوب",
+    "price_required": "السعر مطلوب",
+    "category_required": "القسم مطلوب"
+  },
+  
+  "menu_card": {
+    "menu": "القائمة",
+    "created_on": "تم إنشاؤها في",
+    "dishes_count": "{{count}} طبق",
+    "see_more": "عرض المزيد",
+    "delete_menu": "حذف القائمة"
+  },
+  
+  "qr_modal": {
+    "qr_code_generated": "تم إنشاء رمز الاستجابة السريعة!",
+    "menu_created_successfully": "تم إنشاء قائمتك \"{{menuName}}\" بنجاح!",
+    "scan_qr_code": "امسح رمز الاستجابة السريعة لعرض قائمتك:",
+    "download_qr": "تحميل رمز الاستجابة السريعة",
+    "close": "إغلاق"
+  },
+  
+  "common": {
+    "save": "حفظ",
+    "edit": "تعديل",
+    "update": "تحديث",
+    "back": "رجوع",
+    "next": "التالي",
+    "loading": "جاري التحميل...",
+    "success": "نجح!",
+    "error": "خطأ",
+    "warning": "تحذير",
+    "info": "معلومة",
+    "yes": "نعم",
+    "no": "لا",
+    "ok": "موافق",
+    "search": "بحث",
+    "filter": "تصفية",
+    "clear": "مسح",
+    "reset": "إعادة تعيين",
+    "submit": "إرسال",
+    "required_field": "هذا الحقل مطلوب"
+  }
 }
 
   

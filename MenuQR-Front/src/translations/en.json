@@ -76,5 +76,70 @@
   "no_menus_found": "No menus found",
   "create_first_menu": "Create your first menu to get started",
   "menu_deleted_successfully": "Menu deleted successfully",
-  "error_deleting_menu": "Error deleting menu"
+  "error_deleting_menu": "Error deleting menu",
+  "create_from_existing_menu": "Create from Existing Menu",
+  "new_menu_name": "New Menu Name",
+  "edit_dishes": "Edit Dishes",
+  "no_dishes": "No dishes in this category",
+  "error_deleting_dish": "Error deleting dish",
+  "confirm_delete_dish": "Delete Dish?",
+  "delete_dish_warning": "Are you sure you want to delete \"{{dishName}}\"? This action cannot be undone.",
+ 
+  
+  "dish_form": {
+    "dish_name": "Dish Name",
+    "dish_name_placeholder": "Enter dish name",
+    "description": "Description",
+    "description_placeholder": "Enter dish description",
+    "price": "Price",
+    "price_placeholder": "Enter price (e.g., 1200 DA)",
+    "category": "Category",
+    "select_category": "Select a category",
+    "image": "Image",
+    "image_placeholder": "Image URL (optional)",
+    "add_dish": "Add Dish",
+    "update_dish": "Update Dish",
+    "dish_name_required": "Dish name is required",
+    "description_required": "Description is required",
+    "price_required": "Price is required",
+    "category_required": "Category is required"
+  },
+  
+  "menu_card": {
+    "menu": "Menu",
+    "created_on": "Created on",
+    "dishes_count": "{{count}} dishes",
+    "see_more": "See More",
+    "delete_menu": "Delete Menu"
+  },
+  
+  "qr_modal": {
+    "qr_code_generated": "QR Code Generated!",
+    "menu_created_successfully": "Your menu \"{{menuName}}\" has been created successfully!",
+    "scan_qr_code": "Scan this QR code to view your menu:",
+    "download_qr": "Download QR Code",
+    "close": "Close"
+  },
+  
+  "common": {
+    "save": "Save",
+    "edit": "Edit",
+    "update": "Update",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "success": "Success!",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "reset": "Reset",
+    "submit": "Submit",
+    "required_field": "This field is required"
+  }
 }
