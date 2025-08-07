@@ -5,6 +5,7 @@ import OrdersTab from './components/dashboard/OrdersTab';
 import MenusTab from './components/dashboard/MenusTab';
 import AnalyticsTab from './components/dashboard/AnalyticsTab';
 import MenuDetailsPage from './pages/MenuDetailsPage';
+import AddNewMenuPage from './pages/AddNewMenuPage';
 
 const App = () => {
   return (
@@ -17,6 +18,7 @@ const App = () => {
           <Route path="analytics" element={<AnalyticsTab />} />
 
           <Route path="menus/:id" element={<MenuDetailsPage />} />
+          <Route path="/menus/new" element={<AddNewMenuPage />} />
         </Route>
       </Routes>
     </Router>

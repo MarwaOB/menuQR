@@ -35,9 +35,9 @@ const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview }) => {
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
+      {/*<label className="block text-sm font-medium text-gray-700 mb-2">
         {t('upload_logo')}
-      </label>
+      </label>*/}
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-xl p-4 cursor-pointer transition ${
