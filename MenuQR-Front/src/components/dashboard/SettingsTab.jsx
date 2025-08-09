@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import InputField from '../UI/InputField';
 import MyButton from '../UI/Button';
@@ -8,11 +8,12 @@ import LogoUploader from '../UI/LogoUploader';
 
 const SettingsTab = () => {
   const { t } = useTranslation();
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
+    restaurant_id: null,
     restaurantName: '',
     email: '',
-    password: '',
     phone: '',
     address: '',
     description: '',
@@ -28,12 +29,92 @@ const SettingsTab = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log('Form:', formData);
-    console.log('Logo:', logoFile);
-    // Submit data here (e.g. to your API)
-  };
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  console.log('Form:', formData);
+  console.log('Logo:', logoFile);
+
+  try {
+    if(logoFile) {
+      const formDataLogo = new FormData();
+      formDataLogo.append('logo', logoFile);
+      formDataLogo.append('restaurant_id', formData.restaurant_id);
+      const logoResponse = await fetch('http://localhost:3000/api/restaurant/logo/upload', {
+        method: 'POST',
+        body: formDataLogo,
+      });
+      if (!logoResponse.ok) {
+        console.error('Failed to upload logo');
+        return;
+      }
+      const logoData = await logoResponse.json();
+      console.log('Logo uploaded:', logoData);
+      setLogoPreview(logoData.cloudinary_url || null);
+
+    }
+
+
+
+    const response = await fetch('http://localhost:3000/api/restaurant/profile/modify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        restaurant_id: formData.restaurant_id,
+        name: formData.restaurantName,        // Use 'name' as backend expects
+        email: formData.email,
+        phone_number: formData.phone,         // Use 'phone_number' as backend expects
+        address: formData.address,
+        description: formData.description,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to update profile');
+      return;
+    }
+
+    alert('Profile updated successfully!');
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    alert('Failed to update profile');
+  }
+};
+
+
+  useEffect(() => {
+    const fetchProfileAndLogo = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/restaurant/profile');
+        if(!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+        const data = await response.json();
+         setFormData({
+          restaurant_id: data.id || null,
+          restaurantName: data.name || '',
+          email: data.email || '',
+          phone: data.phone_number || '',
+          address: data.address || '',
+          description: data.description || '',
+         });
+         if (data.id) {
+        const logoRes = await fetch(`http://localhost:3000/api/restaurant/${data.id}/logo`);
+        if (logoRes.ok) {
+          const logoData = await logoRes.json();
+          setLogoPreview(logoData.image_url || null);
+        }
+      }
+      } catch(error){
+        console.error('Error fetching profile or logo:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfileAndLogo();
+  }, [])
+
 
   return (
     <div className="space-y-6">
@@ -61,14 +142,6 @@ const SettingsTab = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
-                label={t('password')}
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
               <InputField
                 label={t('phone')}
                 name="phone"
@@ -109,7 +182,7 @@ const SettingsTab = () => {
           />
         </div>
 
-        <MyButton type="submit" className="bg-yellow-400 hover:bg-yellow-500 text-white">
+        <MyButton type="submit" onClick={handleSubmit} className="bg-yellow-400 hover:bg-yellow-500 text-white">
           {t('update')}
         </MyButton>
       </form>
