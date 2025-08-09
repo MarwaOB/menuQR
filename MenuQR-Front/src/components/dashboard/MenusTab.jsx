@@ -83,9 +83,10 @@ const MenusTab = () => {
   const handleAddMenu = () => {
     if (selectedOption === 'existing') {
       console.log('Add from existing menu');
+      navigate('/menus/newExisting');
     } else if (selectedOption === 'scratch') {
       console.log('Add new empty menu');
-      navigate('/menus/new');
+      navigate('/menus/newScratch');
     }
     setShowModal(false);
   };
