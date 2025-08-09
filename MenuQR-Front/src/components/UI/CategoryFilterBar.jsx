@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 const CategoryFilterBar = ({ categories, selectedCategory, onChange }) => {
   const { t } = useTranslation();
 
-  const allCategories = ['All', ...categories];
+  // Only add 'All' if it's not already in the categories array
+  const allCategories = categories.includes('All') ? categories : ['All', ...categories];
 
   return (
     <div className="flex flex-wrap gap-3 items-center justify-start">

@@ -71,7 +71,7 @@
   "download_qr_code": "Download QR Code",
   "qr_code_description": "Share this QR code with customers to access your menu",
    "confirm_delete_menu": "Delete Menu?",
-  "delete_menu_warning": "Are you sure you want to delete '{{menuName}}' (Menu #{{menuNumber}})? This action cannot be undone.",
+  "delete_menu_warning": "Are you sure you want to delete '{{menuName}}'? This action cannot be undone.",
   "deleting": "Deleting...",
   "no_menus_found": "No menus found",
   "create_first_menu": "Create your first menu to get started",

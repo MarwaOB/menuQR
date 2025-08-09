@@ -5,14 +5,14 @@ import MyButton from './Button';
 import { FaTrash, FaEye } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 
-const MenuCard = ({ number, date, onSeeMore, onDelete }) => {
+const MenuCard = ({ name, date, onSeeMore, onDelete }) => {
   const { t } = useTranslation();
 
   return (
     <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition">
       <div>
         <p className="text-gray-700 font-semibold">
-          {t('menu')} #{number}
+          {t('menu')} #{name}
         </p>
         <p className="text-sm text-gray-500">{t('created_on')}: {date}</p>
       </div>

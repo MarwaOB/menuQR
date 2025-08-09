@@ -286,11 +286,64 @@ router.post('/delete', async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM Menu WHERE id=?';
-    await db.query(sql, [menu_id]);
+    const cloudinary = req.app.get('cloudinary');
     
-    res.status(200).json({ message: 'Menu deleted successfully' });
+    // Start transaction for data consistency
+    await db.query('START TRANSACTION');
+
+    // 1. Get all dishes in this menu
+    const [dishes] = await db.query('SELECT id FROM Dish WHERE menu_id = ?', [menu_id]);
+    console.log(`Found ${dishes.length} dishes to delete for menu ${menu_id}`);
+
+    // 2. Delete all dish images (both from storage and database)
+    for (const dish of dishes) {
+      // Get all images for this dish
+      const [images] = await db.query('SELECT * FROM DishImage WHERE dish_id = ?', [dish.id]);
+      
+      for (const image of images) {
+        // Delete from Cloudinary
+        if (image.public_id) {
+          try {
+            await cloudinary.uploader.destroy(image.public_id);
+            console.log(`Deleted image from Cloudinary: ${image.public_id}`);
+          } catch (cloudinaryErr) {
+            console.warn(`Failed to delete from Cloudinary: ${image.public_id}`, cloudinaryErr);
+          }
+        }
+        
+        // Delete local file
+        if (image.local_filename && fs.existsSync(image.local_filename)) {
+          try {
+            fs.unlinkSync(image.local_filename);
+            console.log(`Deleted local file: ${image.local_filename}`);
+          } catch (fsErr) {
+            console.warn(`Failed to delete local file: ${image.local_filename}`, fsErr);
+          }
+        }
+      }
+      
+      // Delete image records from database
+      await db.query('DELETE FROM DishImage WHERE dish_id = ?', [dish.id]);
+    }
+
+    // 3. Delete all dishes in this menu
+    await db.query('DELETE FROM Dish WHERE menu_id = ?', [menu_id]);
+    console.log(`Deleted ${dishes.length} dishes for menu ${menu_id}`);
+
+    // 4. Finally delete the menu itself
+    await db.query('DELETE FROM Menu WHERE id = ?', [menu_id]);
+    console.log(`Deleted menu ${menu_id}`);
+
+    // Commit transaction
+    await db.query('COMMIT');
+    
+    res.status(200).json({ 
+      message: 'Menu deleted successfully',
+      deleted_dishes: dishes.length 
+    });
   } catch (err) {
+    // Rollback transaction on error
+    await db.query('ROLLBACK');
     console.error('Error in POST /api/menu/delete:', err);
     res.status(500).json({ error: 'Failed to delete menu', details: err.message });
   }
@@ -316,13 +369,15 @@ router.get('/:menu_id/full', async (req, res) => {
       return res.status(404).json({ error: 'Menu not found' });
     }
 
-    // Get dishes organized by sections
+    // Get dishes organized by sections with images
     const dishesSql = `
       SELECT 
         s.id as section_id, s.name as section_name,
-        d.id as dish_id, d.name as dish_name, d.description, d.price
+        d.id as dish_id, d.name as dish_name, d.description, d.price,
+        di.image_url
       FROM Section s
       LEFT JOIN Dish d ON s.id = d.section_id AND d.menu_id = ?
+      LEFT JOIN DishImage di ON d.id = di.dish_id
       ORDER BY s.name, d.name
     `;
     const [dishesRows] = await db.query(dishesSql, [menu_id]);
@@ -339,12 +394,21 @@ router.get('/:menu_id/full', async (req, res) => {
       }
       
       if (row.dish_id) {
-        sections[row.section_id].dishes.push({
-          id: row.dish_id,
-          name: row.dish_name,
-          description: row.description,
-          price: row.price
-        });
+        const existingDish = sections[row.section_id].dishes.find(
+          d => d.id === row.dish_id
+        );
+
+        if (!existingDish) {
+          sections[row.section_id].dishes.push({
+            id: row.dish_id,
+            name: row.dish_name,
+            description: row.description,
+            price: row.price,
+            images: row.image_url ? [row.image_url] : []
+          });
+        } else if (row.image_url) {
+          existingDish.images.push(row.image_url);
+        }
       }
     });
 

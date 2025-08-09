@@ -101,17 +101,16 @@ router.post('/logo/upload', (req, res, next) => {
         await cloudinary.uploader.destroy(existingLogo[0].public_id);
       }
       // Delete local file
-      const oldLocalPath = path.join(uploadsDir, path.basename(existingLogo[0].image_url));
-      if (fs.existsSync(oldLocalPath)) {
-        fs.unlinkSync(oldLocalPath);
+      if (existingLogo[0].local_path && fs.existsSync(existingLogo[0].local_path)) {
+        fs.unlinkSync(existingLogo[0].local_path);
       }
       // Delete from DB
       await db.query('DELETE FROM RestaurantLogo WHERE restaurant_id = ?', [restaurant_id]);
     }
 
-    // Store new logo info in DB
-    const sql = 'INSERT INTO RestaurantLogo (restaurant_id, image_url, public_id) VALUES (?, ?, ?)';
-    await db.query(sql, [restaurant_id, cloudinaryResult.secure_url, cloudinaryResult.public_id]);
+    // Store new logo info in DB (now includes local_path)
+    const sql = 'INSERT INTO RestaurantLogo (restaurant_id, image_url, public_id, local_path) VALUES (?, ?, ?, ?)';
+    await db.query(sql, [restaurant_id, cloudinaryResult.secure_url, cloudinaryResult.public_id, localPath]);
 
     res.status(201).json({
       message: 'Logo uploaded successfully',

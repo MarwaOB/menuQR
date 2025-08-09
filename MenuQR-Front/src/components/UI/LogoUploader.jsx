@@ -51,23 +51,14 @@ const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview }) => {
       </div>
 
       {logoPreview && (
-        <div className="mt-4 relative w-fit">
+        <div className="mt-4 w-fit">
           <p className="text-sm text-gray-600 mb-1">{t('preview')}:</p>
-
-          <div className="relative w-24 h-24">
+          <div className="w-24 h-24">
             <img
               src={logoPreview}
               alt="Logo Preview"
               className="w-full h-full object-contain rounded-md shadow border"
             />
-            <button
-              type="button"
-              onClick={handleRemove}
-              className="absolute -top-2 -right-2 bg-white rounded-full shadow text-red-500 hover:text-red-700 transition p-1"
-              title={t('remove_logo')}
-            >
-              <FaTimesCircle size={16} />
-            </button>
           </div>
         </div>
       )}

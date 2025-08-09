@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import MenuCard from '../UI/MenuCard';
@@ -8,17 +8,13 @@ import MyButton from '../UI/Button';
 import Modal from '../UI/Modal';
 import { FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 
-const dummyMenus = [
-  { id: 1, number: 101, date: '2025-07-01', name: 'Summer Menu' },
-  { id: 2, number: 102, date: '2025-07-15', name: 'BBQ Special' },
-  { id: 3, number: 103, date: '2025-08-01', name: 'Breakfast Menu' },
-];
+
 
 const MenusTab = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [menus, setMenus] = useState(dummyMenus);
+  const [menus, setMenus] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedOption, setSelectedOption] = useState('');
@@ -41,13 +37,26 @@ const MenusTab = () => {
     setIsDeleting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('http://localhost:3000/api/menu/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          menu_id: menuToDelete.id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete menu');
+      }
+
+      const result = await response.json();
+      console.log('Menu deleted successfully:', result);
       
       // Remove menu from state
       setMenus(prevMenus => prevMenus.filter(menu => menu.id !== menuToDelete.id));
-      
-      console.log('Menu deleted successfully:', menuToDelete.id);
       
       // Close modal and reset state
       setShowDeleteModal(false);
@@ -60,6 +69,7 @@ const MenusTab = () => {
       console.error('Error deleting menu:', error);
       // You can add an error notification here
       // toast.error(t('error_deleting_menu'));
+      alert(`Error: ${error.message}`); // Temporary error display
     } finally {
       setIsDeleting(false);
     }
@@ -79,6 +89,25 @@ const MenusTab = () => {
     }
     setShowModal(false);
   };
+  
+  useEffect(() => {
+        const fetchAllMenus = async () => {
+          try { 
+  const allMenusResponse = await fetch('http://localhost:3000/api/menu/allMenus');
+  if(!allMenusResponse.ok) {
+    console.error('Failed to fetch menus');
+    return;}
+  const allMenusData = await allMenusResponse.json(); 
+  setMenus(allMenusData);
+} catch (error) {
+           console.error('Error fetching all Menus:', error);
+
+} 
+}
+
+
+fetchAllMenus();
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -96,7 +125,6 @@ const MenusTab = () => {
           menus.map((menu) => (
             <MenuCard
               key={menu.id}
-              number={menu.number}
               date={menu.date}
               name={menu.name}
               onSeeMore={() => handleSeeMore(menu.id)}
@@ -170,8 +198,7 @@ const MenusTab = () => {
           
           <p className="text-sm text-gray-600 mb-6">
             {t('delete_menu_warning', { 
-              menuName: menuToDelete?.name || `Menu ${menuToDelete?.number}`,
-              menuNumber: menuToDelete?.number 
+              menuName: menuToDelete?.name
             })}
           </p>
 

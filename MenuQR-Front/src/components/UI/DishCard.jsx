@@ -18,12 +18,18 @@ const DishCard = ({
     <div className="flex flex-col md:flex-row items-start gap-4 p-5 rounded-2xl border border-gray-200 shadow-lg bg-white/40 backdrop-blur-sm transition-all hover:shadow-xl group">
       
       {/* Image */}
-      <div className="w-full md:w-32 h-32 rounded-xl overflow-hidden bg-gray-100 relative">
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-full object-cover object-center transform transition-transform duration-300 group-hover:scale-110"
-        />
+      <div className="w-full md:w-32 h-32 rounded-xl overflow-hidden bg-gray-100 relative flex items-center justify-center">
+        {image ? (
+          <img
+            src={image}
+            alt={name}
+            className="w-full h-full object-cover object-center transform transition-transform duration-300 group-hover:scale-110"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+            <span className="text-gray-500 text-xs font-medium">No Image</span>
+          </div>
+        )}
       </div>
 
       {/* Info */}
