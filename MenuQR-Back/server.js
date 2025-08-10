@@ -5,7 +5,17 @@ const cors = require("cors")
 app.use(cors());
 require('dotenv').config();
 
-app.use(express.json());
+// Apply JSON parsing middleware to all routes except file upload routes
+app.use((req, res, next) => {
+  // Skip JSON parsing only for specific file upload routes
+  if (req.path === '/api/restaurant/logo/upload') {
+    // Skip JSON parsing for file upload routes
+    next();
+  } else {
+    // Apply JSON parsing for all other routes
+    express.json()(req, res, next);
+  }
+});
 
 require('dotenv').config();
 

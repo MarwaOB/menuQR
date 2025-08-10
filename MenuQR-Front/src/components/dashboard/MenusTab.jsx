@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { menuAPI } from '../../utils/api';
 import MenuCard from '../UI/MenuCard';
 import MyButton from '../UI/Button';
 import Modal from '../UI/Modal';
@@ -37,22 +38,7 @@ const MenusTab = () => {
     setIsDeleting(true);
     
     try {
-      const response = await fetch('http://localhost:3000/api/menu/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          menu_id: menuToDelete.id
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete menu');
-      }
-
-      const result = await response.json();
+      const result = await menuAPI.delete(menuToDelete.id);
       console.log('Menu deleted successfully:', result);
       
       // Remove menu from state
@@ -94,11 +80,7 @@ const MenusTab = () => {
   useEffect(() => {
         const fetchAllMenus = async () => {
           try { 
-  const allMenusResponse = await fetch('http://localhost:3000/api/menu/allMenus');
-  if(!allMenusResponse.ok) {
-    console.error('Failed to fetch menus');
-    return;}
-  const allMenusData = await allMenusResponse.json(); 
+  const allMenusData = await menuAPI.getAll(); 
   setMenus(allMenusData);
 } catch (error) {
            console.error('Error fetching all Menus:', error);

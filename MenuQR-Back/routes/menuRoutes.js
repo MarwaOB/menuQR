@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { authenticateToken } = require('../middleware/auth');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -188,7 +189,7 @@ router.get('/menuSuggestions', async (req, res) => {
 // ======================
 
 // Create a new menu
-router.post('/add', async (req, res) => {
+router.post('/add', authenticateToken, async (req, res) => {
   console.log('POST /api/menu/add - Request received');
   console.log('Request body:', req.body);
   
@@ -217,7 +218,7 @@ router.post('/add', async (req, res) => {
 });
 
 // Get all menus for a restaurant
-router.get('/allMenus', async (req, res) => {
+router.get('/allMenus', authenticateToken, async (req, res) => {
   console.log('GET /api/menu/allMenus - Request received');
     
   try {
@@ -253,7 +254,7 @@ router.get('/:menu_id', async (req, res) => {
 });
 
 // Update menu
-router.post('/modify', async (req, res) => {
+router.post('/modify', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurants/menu/modify - Request received');
   console.log('Request body:', req.body);
   
@@ -275,7 +276,7 @@ router.post('/modify', async (req, res) => {
 });
 
 // Delete menu
-router.post('/delete', async (req, res) => {
+router.post('/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/menu/delete - Request received');
   console.log('Request body:', req.body);
   
@@ -430,8 +431,197 @@ router.get('/:menu_id/full', async (req, res) => {
 // BULK OPERATIONS
 // ======================
 
+// Add this new endpoint to your menu router (menu.js)
+
+// Create menu from existing with modifications
+router.post('/create-from-existing', authenticateToken, async (req, res) => {
+  console.log('POST /api/menu/create-from-existing - Request received');
+  console.log('Request body:', req.body);
+  
+  const { name, date, dishes } = req.body;
+
+  if (!name || !date || !dishes) {
+    return res.status(400).json({ error: 'Name, date, and dishes are required' });
+  }
+
+  try {
+    await db.query('START TRANSACTION');
+
+    // 1. Create the new menu
+    const menuResult = await db.query(
+      'INSERT INTO Menu (name, date) VALUES (?, ?)',
+      [name, date]
+    );
+    const newMenuId = menuResult[0].insertId;
+
+    // 2. Get all sections for mapping categories
+    const [sections] = await db.query('SELECT * FROM Section');
+    const sectionMap = {};
+    sections.forEach(section => {
+      sectionMap[section.name] = section.id;
+    });
+
+    // 3. Process each dish
+    let dishesCreated = 0;
+    for (const dish of dishes) {
+      // Map category to section_id
+      const sectionId = sectionMap[dish.category];
+      if (!sectionId) {
+        console.warn(`Section not found for category: ${dish.category}`);
+        continue;
+      }
+
+      // Insert the dish
+      const dishResult = await db.query(
+        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+        [dish.name, dish.description, dish.price, sectionId, newMenuId]
+      );
+      
+      const newDishId = dishResult[0].insertId;
+      
+      // If dish has an image and it's not a new dish, we might want to copy the image
+      // For now, we'll skip image copying as it's complex with different storage systems
+      // You can implement image copying logic here if needed
+      
+      dishesCreated++;
+    }
+
+    await db.query('COMMIT');
+    
+    console.log(`✅ Successfully created menu with ${dishesCreated} dishes`);
+    res.status(201).json({ 
+      message: 'Menu created successfully from existing menu',
+      menu_id: newMenuId,
+      dishes_created: dishesCreated
+    });
+    
+  } catch (err) {
+    await db.query('ROLLBACK');
+    console.error('❌ Error in POST /api/menu/create-from-existing:', err);
+    
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({ error: 'Menu for this date already exists' });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to create menu from existing',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+  }
+});
+
+// Alternative approach: Enhanced copy endpoint that supports modifications
+router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
+  console.log('POST /api/menu/copy-with-modifications - Request received');
+  console.log('Request body:', req.body);
+  
+  const { source_menu_id, new_date, new_name, dish_modifications, new_dishes } = req.body;
+
+  if (!source_menu_id || !new_date) {
+    return res.status(400).json({ error: 'Source menu ID and new date are required' });
+  }
+
+  try {
+    await db.query('START TRANSACTION');
+
+    // Get source menu info
+    const [sourceMenu] = await db.query('SELECT * FROM Menu WHERE id = ?', [source_menu_id]);
+    if (sourceMenu.length === 0) {
+      throw new Error('Source menu not found');
+    }
+
+    // Create new menu
+    const menuName = new_name || `${sourceMenu[0].name} - Copy`;
+    const newMenuResult = await db.query(
+      'INSERT INTO Menu (name, date) VALUES (?, ?)',
+      [menuName, new_date]
+    );
+    const new_menu_id = newMenuResult[0].insertId;
+
+    // Get original dishes
+    const [originalDishes] = await db.query('SELECT * FROM Dish WHERE menu_id = ?', [source_menu_id]);
+    
+    let dishesProcessed = 0;
+    const modificationMap = {};
+    
+    // Create modification lookup map
+    if (dish_modifications) {
+      dish_modifications.forEach(mod => {
+        modificationMap[mod.original_dish_id] = mod;
+      });
+    }
+
+    // Process original dishes with modifications
+    for (const dish of originalDishes) {
+      const modification = modificationMap[dish.id];
+      
+      // Skip if dish is marked for deletion
+      if (modification && modification.action === 'delete') {
+        continue;
+      }
+      
+      // Apply modifications or use original data
+      const dishData = modification && modification.action === 'modify' ? {
+        name: modification.name || dish.name,
+        description: modification.description || dish.description,
+        price: modification.price || dish.price,
+        section_id: modification.section_id || dish.section_id
+      } : {
+        name: dish.name,
+        description: dish.description,
+        price: dish.price,
+        section_id: dish.section_id
+      };
+
+      await db.query(
+        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+        [dishData.name, dishData.description, dishData.price, dishData.section_id, new_menu_id]
+      );
+      
+      dishesProcessed++;
+    }
+
+    // Add new dishes
+    if (new_dishes && new_dishes.length > 0) {
+      // Get sections for mapping
+      const [sections] = await db.query('SELECT * FROM Section');
+      const sectionMap = {};
+      sections.forEach(section => {
+        sectionMap[section.name] = section.id;
+      });
+
+      for (const newDish of new_dishes) {
+        const sectionId = sectionMap[newDish.category] || sectionMap[Object.keys(sectionMap)[0]];
+        
+        await db.query(
+          'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+          [newDish.name, newDish.description, newDish.price, sectionId, new_menu_id]
+        );
+        
+        dishesProcessed++;
+      }
+    }
+
+    await db.query('COMMIT');
+    
+    res.status(201).json({ 
+      message: 'Menu copied with modifications successfully',
+      new_menu_id,
+      dishes_processed: dishesProcessed
+    });
+    
+  } catch (err) {
+    await db.query('ROLLBACK');
+    console.error('Error in POST /api/menu/copy-with-modifications:', err);
+    res.status(500).json({ 
+      error: 'Failed to copy menu with modifications', 
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
 // Copy menu to new date
-router.post('/copy', async (req, res) => {
+router.post('/copy', authenticateToken, async (req, res) => {
   console.log('POST /api/menu/copy - Request received');
   console.log('Request body:', req.body);
   
@@ -481,26 +671,6 @@ router.post('/copy', async (req, res) => {
   }
 });
 
-// ======================
-// MIDDLEWARE & UTILITIES
-// ======================
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 module.exports = router;

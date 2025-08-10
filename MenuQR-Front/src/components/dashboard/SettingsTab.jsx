@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { restaurantAPI } from '../../utils/api';
 import InputField from '../UI/InputField';
 import MyButton from '../UI/Button';
 import LogoUploader from '../UI/LogoUploader';
@@ -29,52 +30,38 @@ const SettingsTab = () => {
     }));
   };
 
+
+
  const handleSubmit = async (e) => {
   e.preventDefault();
   console.log('Form:', formData);
   console.log('Logo:', logoFile);
 
   try {
+    // Upload logo if provided
     if(logoFile) {
-      const formDataLogo = new FormData();
-      formDataLogo.append('logo', logoFile);
-      formDataLogo.append('restaurant_id', formData.restaurant_id);
-      const logoResponse = await fetch('http://localhost:3000/api/restaurant/logo/upload', {
-        method: 'POST',
-        body: formDataLogo,
-      });
-      if (!logoResponse.ok) {
-        console.error('Failed to upload logo');
+      try {
+        const logoData = await restaurantAPI.uploadLogo(logoFile, formData.restaurant_id);
+        console.log('Logo uploaded:', logoData);
+        setLogoPreview(logoData.cloudinary_url || null);
+      } catch (logoError) {
+        console.error('Failed to upload logo:', logoError);
+        alert('Failed to upload logo');
         return;
       }
-      const logoData = await logoResponse.json();
-      console.log('Logo uploaded:', logoData);
-      setLogoPreview(logoData.cloudinary_url || null);
-
     }
 
+    // Update profile
+    const profileData = {
+      restaurant_id: formData.restaurant_id,
+      name: formData.restaurantName,
+      email: formData.email,
+      phone_number: formData.phone,
+      address: formData.address,
+      description: formData.description,
+    };
 
-
-    const response = await fetch('http://localhost:3000/api/restaurant/profile/modify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        restaurant_id: formData.restaurant_id,
-        name: formData.restaurantName,        // Use 'name' as backend expects
-        email: formData.email,
-        phone_number: formData.phone,         // Use 'phone_number' as backend expects
-        address: formData.address,
-        description: formData.description,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('Failed to update profile');
-      return;
-    }
-
+    await restaurantAPI.updateProfile(profileData);
     alert('Profile updated successfully!');
   } catch (error) {
     console.error('Error updating profile:', error);
@@ -86,28 +73,26 @@ const SettingsTab = () => {
   useEffect(() => {
     const fetchProfileAndLogo = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/restaurant/profile');
-        if(!response.ok) {
-          throw new Error('Failed to fetch profile');
-        }
-        const data = await response.json();
-         setFormData({
+        const data = await restaurantAPI.getProfile();
+        setFormData({
           restaurant_id: data.id || null,
           restaurantName: data.name || '',
           email: data.email || '',
           phone: data.phone_number || '',
           address: data.address || '',
           description: data.description || '',
-         });
-         if (data.id) {
-        const logoRes = await fetch(`http://localhost:3000/api/restaurant/${data.id}/logo`);
-        if (logoRes.ok) {
-          const logoData = await logoRes.json();
-          setLogoPreview(logoData.image_url || null);
+        });
+        
+        if (data.id) {
+          try {
+            const logoData = await restaurantAPI.getLogo(data.id);
+            setLogoPreview(logoData.image_url || null);
+          } catch (logoError) {
+            console.log('No logo found or error fetching logo:', logoError);
+          }
         }
-      }
       } catch(error){
-        console.error('Error fetching profile or logo:', error);
+        console.error('Error fetching profile:', error);
       } finally {
         setLoading(false);
       }

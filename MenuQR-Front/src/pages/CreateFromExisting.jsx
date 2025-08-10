@@ -1,44 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuCard from '../components/UI/MenuCard';
-import InputField from '../components/UI/InputField';
+import { useTranslation } from 'react-i18next';
+import { sectionAPI, menuAPI, dishAPI } from '../utils/api';
 import DishCard from '../components/UI/DishCard';
 import DishInput from '../components/UI/DishCardInput';
 import MyButton from '../components/UI/Button';
-import CategoryFilterBar from '../components/UI/CategoryFilterBar';
-import Modal from '../components/UI/Modal'; 
-import { useTranslation } from 'react-i18next';
-import { CATEGORIES } from '../constants/categories';
 import QRCodeModal from '../components/QRCodeModal';
 import { v4 as uuidv4 } from 'uuid';
-import { FaPlus, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaSpinner, FaExclamationTriangle, FaTrash } from 'react-icons/fa';
+import { UtensilsCrossed, Copy } from 'lucide-react';
+import InputField from '../components/UI/InputField';
+import CategoryFilterBar from '../components/UI/CategoryFilterBar';
+import { CATEGORIES } from '../constants/categories';
+import Modal from '../components/UI/Modal'; 
 
-const mockMenus = [
-  {
-    id: 'menu1',
-    number: 1,
-    name: 'Summer Specials',
-    date: '2025-08-07',
-    dishes: [
-      { id: 'd1', name: 'Grilled Chicken', description: 'With herbs', price: '1200 DA', image: '', category: 'Main Course' },
-      { id: 'd2', name: 'Ice Cream', description: 'Vanilla flavor', price: '500 DA', image: '', category: 'Desserts' },
-      { id: 'd3', name: 'Coca-Cola', description: 'Chilled drink', price: '300 DA', image: '', category: 'Drinks' },
-    ],
-  },
-  {
-    id: 'menu2',
-    number: 2,
-    name: 'Winter Warmers',
-    date: '2025-06-12',
-    dishes: [],
-  },
-];
+const API_BASE_URL =  'http://localhost:3000';
 
 const CreateFromExistingMenuPage = () => {
   const { t } = useTranslation();
+  const [menus, setMenus] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [loadingMenus, setLoadingMenus] = useState(true);
   const [selectedMenuId, setSelectedMenuId] = useState(null);
+  const [selectedMenuData, setSelectedMenuData] = useState(null);
   const [newMenuName, setNewMenuName] = useState('');
+  const [newMenuDate, setNewMenuDate] = useState('');
   const [editableDishes, setEditableDishes] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showQRModal, setShowQRModal] = useState(false);
@@ -52,14 +40,83 @@ const CreateFromExistingMenuPage = () => {
   const [dishToDelete, setDishToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleSelectMenu = (menuId) => {
-    const selectedMenu = mockMenus.find((menu) => menu.id === menuId);
-    setSelectedMenuId(menuId);
-    setNewMenuName(`${selectedMenu.name} Copy`);
-    setEditableDishes([...selectedMenu.dishes]);
-    setSelectedCategory('All');
-    setEditingDishId(null);
-    setShowAddDishForm(false);
+  // Fetch all menus and sections on component mount
+  useEffect(() => {
+    fetchMenus();
+    fetchSections();
+  }, []);
+
+  const fetchSections = async () => {
+    try {
+      const sectionsData = await sectionAPI.getAll();
+      setSections(sectionsData);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+    }
+  };
+
+  const fetchMenus = async () => {
+    try {
+      setLoadingMenus(true);
+      const menusData = await menuAPI.getAll();
+      setMenus(menusData);
+    } catch (error) {
+      console.error('Error fetching menus:', error);
+      alert(t('error_fetching_menus') || 'Error fetching menus');
+    } finally {
+      setLoadingMenus(false);
+    }
+  };
+
+  const fetchFullMenu = async (menuId) => {
+    try {
+      const menuData = await menuAPI.getFull(menuId);
+      return menuData;
+    } catch (error) {
+      console.error('Error fetching menu details:', error);
+      throw error;
+    }
+  };
+
+  const handleSelectMenu = async (menuId) => {
+    try {
+      setIsLoading(true);
+      const menuData = await fetchFullMenu(menuId);
+      
+      setSelectedMenuId(menuId);
+      setSelectedMenuData(menuData);
+      setNewMenuName(`${menuData.name} - Copy`);
+      
+      // Set today's date as default
+      const today = new Date().toISOString().split('T')[0];
+      setNewMenuDate(today);
+      
+      // Convert sections/dishes to the format expected by the frontend
+      const dishes = [];
+      menuData.sections?.forEach(section => {
+        section.dishes?.forEach(dish => {
+          dishes.push({
+            id: dish.id,
+            name: dish.name,
+            description: dish.description,
+            price: dish.price,
+            image: dish.images?.[0] || null, // Use first image URL if available
+            imagePreview: dish.images?.[0] || null, // For display
+            category: section.name, // Map section name to category
+            section_id: section.id // Store section_id for backend
+          });
+        });
+      });
+      
+      setEditableDishes(dishes);
+      setSelectedCategory('All');
+      setEditingDishId(null);
+      setShowAddDishForm(false);
+    } catch (error) {
+      alert(t('error_loading_menu') || 'Error loading menu details');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleUpdateDish = (dishId) => {
@@ -68,17 +125,42 @@ const CreateFromExistingMenuPage = () => {
   };
 
   const handleEditDishSubmit = (dishData) => {
+    // Handle image preview for new uploads
+    let imagePreview = null;
+    if (dishData.image instanceof File) {
+      imagePreview = URL.createObjectURL(dishData.image);
+    } else if (typeof dishData.image === 'string') {
+      imagePreview = dishData.image;
+    } else {
+      // Keep existing preview if no new image
+      const existingDish = editableDishes.find(dish => dish.id === editingDishId);
+      imagePreview = existingDish?.imagePreview;
+    }
+
     setEditableDishes((prev) =>
-      prev.map((dish) => (dish.id === editingDishId ? { ...dish, ...dishData } : dish))
+      prev.map((dish) => (dish.id === editingDishId ? { 
+        ...dish, 
+        ...dishData,
+        imagePreview: imagePreview
+      } : dish))
     );
     setEditingDishId(null);
   };
 
   const handleAddDishSubmit = (dishData) => {
+    // Handle image preview for new uploads
+    let imagePreview = null;
+    if (dishData.image instanceof File) {
+      imagePreview = URL.createObjectURL(dishData.image);
+    } else if (typeof dishData.image === 'string') {
+      imagePreview = dishData.image;
+    }
+
     const newDish = {
       id: uuidv4(),
       ...dishData,
-      category: dishData.category || CATEGORIES[0],
+      imagePreview: imagePreview,
+      isNew: true // Mark as new for backend processing
     };
     setEditableDishes((prev) => [...prev, newDish]);
     setShowAddDishForm(false);
@@ -95,9 +177,7 @@ const CreateFromExistingMenuPage = () => {
     
     setIsDeleting(true);
     try {
-      // Simulate async deletion (replace with actual API call)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      // Just remove from local state, will be handled in final creation
       setEditableDishes((prev) => prev.filter((dish) => dish.id !== dishToDelete.id));
       setShowDeleteModal(false);
       setDishToDelete(null);
@@ -119,32 +199,86 @@ const CreateFromExistingMenuPage = () => {
   const handleCancelAdd = () => setShowAddDishForm(false);
 
   const handleConfirm = async () => {
-    if (!newMenuName.trim()) return alert(t('menu_name_required'));
+    if (!newMenuName.trim()) {
+      alert(t('menu_name_required') || 'Menu name is required');
+      return;
+    }
+    
+    if (!newMenuDate) {
+      alert(t('menu_date_required') || 'Menu date is required');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const createdDate = new Date().toISOString().split('T')[0];
-      const menuData = {
-        id: uuidv4(),
+      // Create new menu with modified dishes (similar to AddNewMenuPage approach)
+      const createdDate = newMenuDate;
+      
+      // Step 1: Create the menu
+      const menuResult = await menuAPI.create({
+        name: newMenuName,
+        date: createdDate
+      });
+      const menuId = menuResult.menu_id;
+
+      // Step 2: Add all dishes to the menu with images
+      const dishPromises = editableDishes.map(async (dish) => {
+        // First, create the dish
+        const dishResult = await dishAPI.create({
+          name: dish.name,
+          description: dish.description,
+          price: dish.price,
+          section_id: dish.section_id,
+          menu_id: menuId
+        });
+        const dishId = dishResult.dish_id;
+
+        // Then, upload the image if it exists and is a File
+        if (dish.image && dish.image instanceof File) {
+          try {
+            await dishAPI.uploadImage(dishId, dish.image);
+          } catch (imageError) {
+            console.warn(`Failed to upload image for dish "${dish.name}":`, imageError);
+            // Don't throw error for image upload failure
+          }
+        }
+
+        return dishResult;
+      });
+
+      // Wait for all dishes to be created
+      await Promise.all(dishPromises);
+
+      // Clean up object URLs
+      editableDishes.forEach(dish => {
+        if (dish.imagePreview && dish.imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(dish.imagePreview);
+        }
+      });
+
+      const createdMenuData = {
+        id: menuId,
         menuName: newMenuName,
-        createdDate,
+        createdDate: createdDate,
         dishes: editableDishes,
       };
 
-      console.log('Menu Data:', menuData);
-      await new Promise((res) => setTimeout(res, 1000));
-
-      setCreatedMenuData(menuData);
+      setCreatedMenuData(createdMenuData);
       setShowQRModal(true);
 
+      // Reset form
       setNewMenuName('');
+      setNewMenuDate('');
       setEditableDishes([]);
       setSelectedMenuId(null);
+      setSelectedMenuData(null);
       setEditingDishId(null);
       setShowAddDishForm(false);
-    } catch (err) {
-      console.error(err);
-      alert(t('error_creating_menu'));
+
+    } catch (error) {
+      console.error('Error creating menu:', error);
+      alert(t('error_creating_menu') || `Error creating menu: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -163,6 +297,14 @@ const CreateFromExistingMenuPage = () => {
   // Get the dish being edited
   const editingDish = editingDishId ? editableDishes.find((dish) => dish.id === editingDishId) : null;
 
+  if (loadingMenus) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <FaSpinner className="animate-spin text-4xl text-gray-400" />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -170,52 +312,73 @@ const CreateFromExistingMenuPage = () => {
 
         {/* Menu List */}
         <div className="space-y-4">
-          {mockMenus.map((menu) => (
-            <div
-              key={menu.id}
-              className={`border-2 rounded-xl p-2 transition-all ${
-                selectedMenuId === menu.id
-                  ? 'border-yellow-400 bg-yellow-50'
-                  : 'border-transparent'
-              }`}
-            >
-              <label className="flex items-center gap-4 cursor-pointer">
-                <input
-                  type="radio"
-                  name="menu"
-                  value={menu.id}
-                  checked={selectedMenuId === menu.id}
-                  onChange={() => handleSelectMenu(menu.id)}
-                  className="w-5 h-5 accent-yellow-400"
-                />
-                <div className="w-full">
-                  <MenuCard
-                    number={menu.number}
-                    date={menu.date}
-                    onSeeMore={() => alert('View full menu')}
-                    onDelete={() => alert('Cannot delete from here')}
+          {menus.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              {t('no_menus_available') || 'No menus available'}
+            </p>
+          ) : (
+            menus.map((menu) => (
+              <div
+                key={menu.id}
+                className={`border-2 rounded-xl p-2 transition-all ${
+                  selectedMenuId === menu.id
+                    ? 'border-yellow-400 bg-yellow-50'
+                    : 'border-transparent hover:border-gray-200'
+                }`}
+              >
+                <label className="flex items-center gap-4 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="menu"
+                    value={menu.id}
+                    checked={selectedMenuId === menu.id}
+                    onChange={() => handleSelectMenu(menu.id)}
+                    className="w-5 h-5 accent-yellow-400"
+                    disabled={isLoading}
                   />
-                </div>
-              </label>
-            </div>
-          ))}
+                  <div className="w-full">
+                    <MenuCard
+                      number={menu.id}
+                      name={menu.name}
+                      date={new Date(menu.date).toLocaleDateString()}
+                      onSeeMore={() => handleSelectMenu(menu.id)}
+                      onDelete={() => {}} // Disable delete from here
+                    />
+                  </div>
+                </label>
+              </div>
+            ))
+          )}
         </div>
 
-        {/* Rename & Edit */}
-        {selectedMenuId && (
+        {/* Rename, Set Date & Edit */}
+        {selectedMenuId && selectedMenuData && (
           <div className="space-y-6 border-t pt-6">
-            <InputField
-              label={t('new_menu_name')}
-              name="newMenuName"
-              value={newMenuName}
-              onChange={(e) => setNewMenuName(e.target.value)}
-              required
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField
+                label={t('new_menu_name')}
+                name="newMenuName"
+                value={newMenuName}
+                onChange={(e) => setNewMenuName(e.target.value)}
+                required
+              />
+              
+              <InputField
+                label={t('menu_date')}
+                name="newMenuDate"
+                type="date"
+                value={newMenuDate}
+                onChange={(e) => setNewMenuDate(e.target.value)}
+                required
+              />
+            </div>
 
             {/* Category Filter and Add Button */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-700">{t('edit_dishes')} ({editableDishes.length})</h3>
+                <h3 className="text-xl font-semibold text-gray-700">
+                  {t('edit_dishes')} ({editableDishes.length})
+                </h3>
                 {!showAddDishForm && !editingDishId && (
                   <MyButton
                     onClick={() => setShowAddDishForm(true)}
@@ -234,7 +397,11 @@ const CreateFromExistingMenuPage = () => {
 
               {/* Add Dish Form */}
               {showAddDishForm && (
-                <DishInput onSubmit={handleAddDishSubmit} onCancel={handleCancelAdd} />
+                <DishInput 
+                  onSubmit={handleAddDishSubmit} 
+                  onCancel={handleCancelAdd} 
+                  sections={sections}
+                />
               )}
 
               {/* Edit Dish Form */}
@@ -242,7 +409,8 @@ const CreateFromExistingMenuPage = () => {
                 <DishInput 
                   onSubmit={handleEditDishSubmit} 
                   onCancel={handleCancelEdit} 
-                  initialData={editingDish} 
+                  initialData={editingDish}
+                  sections={sections}
                 />
               )}
 
@@ -255,7 +423,7 @@ const CreateFromExistingMenuPage = () => {
                         <DishCard
                           key={dish.id}
                           id={dish.id}
-                          image={dish.image || '/api/placeholder/200/200'}
+                          image={dish.imagePreview || dish.image || '/api/placeholder/200/200'}
                           name={dish.name}
                           description={dish.description}
                           price={dish.price}
@@ -265,7 +433,9 @@ const CreateFromExistingMenuPage = () => {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-400 italic">{t('no_dishes')}</p>
+                    selectedCategory !== 'All' && (
+                      <p className="text-gray-400 italic">{t('no_dishes_in_category')}</p>
+                    )
                   )}
                 </div>
               ))}
@@ -274,9 +444,10 @@ const CreateFromExistingMenuPage = () => {
             {!showAddDishForm && !editingDishId && (
               <MyButton
                 onClick={handleConfirm}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl mt-4"
-                disabled={isLoading}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl mt-4 flex items-center gap-2"
+                disabled={isLoading || !newMenuName.trim() || !newMenuDate}
               >
+                {isLoading && <FaSpinner className="animate-spin" />}
                 {isLoading ? t('creating_menu') : t('confirm')}
               </MyButton>
             )}
@@ -305,7 +476,7 @@ const CreateFromExistingMenuPage = () => {
           
           <p className="text-sm text-gray-600 mb-6">
             {t('delete_dish_warning', {
-              dishName: dishToDelete?.name || `Dish ${dishToDelete?.id}`,
+              dishName: dishToDelete?.name || 'this dish',
             })}
           </p>
 

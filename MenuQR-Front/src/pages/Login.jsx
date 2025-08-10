@@ -1,12 +1,25 @@
-'use client';
-
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminLoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
 
   const validateForm = () => {
     let isValid = true;
@@ -35,25 +48,20 @@ export default function AdminLoginForm() {
     if (!validateForm()) return;
 
     setLoading(true);
+    setLoginError('');
 
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Login failed');
-
-      // Optional: Store token in localStorage
-      localStorage.setItem('adminToken', data.token);
-
-      // Redirect to admin dashboard
-      window.location.href = '/admin/dashboard';
+      const result = await login(email, password);
+      
+      if (result.success) {
+        // Redirect to the page they were trying to access or dashboard
+        const from = location.state?.from?.pathname || '/';
+        navigate(from, { replace: true });
+      } else {
+        setLoginError(result.error || 'Login failed');
+      }
     } catch (err) {
-      alert(err.message);
+      setLoginError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,6 +71,13 @@ export default function AdminLoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-800">Admin Login</h2>
+        
+        {loginError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {loginError}
+          </div>
+        )}
+        
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
@@ -103,7 +118,9 @@ export default function AdminLoginForm() {
               <input type="checkbox" className="accent-orange-500" />
               Remember me
             </label>
-            <a href="#" className="text-orange-600 hover:underline">Forgot password?</a>
+            <Link to="/forgot-password" className="text-orange-600 hover:underline">
+              Forgot password?
+            </Link>
           </div>
 
           <button
@@ -118,6 +135,15 @@ export default function AdminLoginForm() {
             )}
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
+
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-medium text-orange-600 hover:text-orange-500">
+                Register here
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>

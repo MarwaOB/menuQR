@@ -4,8 +4,7 @@ const db = require('../db');
 const streamifier = require('streamifier');
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const { authenticateToken } = require('../middleware/auth');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -69,7 +68,7 @@ router.get('/search', async (req, res) => {
 // ======================
 
 // Add a new dish
-router.post('/add', async (req, res) => {
+router.post('/add', authenticateToken, async (req, res) => {
   console.log('POST /api/dish/add - Request received');
   console.log('Request body:', req.body);
   
@@ -143,7 +142,7 @@ router.get('/:dish_id', async (req, res) => {
 });
 
 // Update dish
-router.post('/modify', async (req, res) => {
+router.post('/modify', authenticateToken, async (req, res) => {
   console.log('POST /api/dish/modify - Request received');
   console.log('Request body:', req.body);
   
@@ -165,7 +164,7 @@ router.post('/modify', async (req, res) => {
 });
 
 // Delete dish
-router.post('/delete', async (req, res) => {
+router.post('/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/dish/delete - Request received');
   console.log('Request body:', req.body);
   
@@ -203,7 +202,7 @@ router.post('/delete', async (req, res) => {
 });
 
 // Upload dish image
-router.post('/image/upload', (req, res, next) => {
+router.post('/image/upload', authenticateToken, (req, res, next) => {
   const upload = req.app.get('upload');
   upload.single('image')(req, res, function (err) {
     if (err) {
@@ -281,7 +280,7 @@ router.get('/:dish_id/images', async (req, res) => {
 });
 
 // Remove dish image
-router.post('/image/remove', async (req, res) => {
+router.post('/image/remove', authenticateToken, async (req, res) => {
   console.log('POST /api/dish/image/remove - Request received');
   console.log('Request body:', req.body);
   
@@ -331,7 +330,7 @@ console.error('Error in POST /api/dish/image/remove:', err.stack || err);
 // ======================
 
 // Bulk add dishes to menu
-router.post('/bulk_add', async (req, res) => {
+router.post('/bulk_add', authenticateToken, async (req, res) => {
   console.log('POST /api/dish/bulk_add - Request received');
   console.log('Request body:', req.body);
   
@@ -366,26 +365,6 @@ router.post('/bulk_add', async (req, res) => {
   }
 });
 
-// ======================
-// MIDDLEWARE & UTILITIES
-// ======================
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 module.exports = router;

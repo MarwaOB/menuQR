@@ -33,11 +33,15 @@ const SelectField = ({
           } focus:ring-2 focus:ring-yellow-400 bg-white text-gray-700`}
         >
           {placeholder && <option value="">{placeholder}</option>}
-          {options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
+          {options.map((opt) => {
+            const optValue = typeof opt === 'object' ? opt.value : opt;
+            const optLabel = typeof opt === 'object' ? opt.label : opt;
+            return (
+              <option key={optValue} value={optValue}>
+                {optLabel}
+              </option>
+            );
+          })}
         </select>
         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-red-500">
           <FaChevronDown />

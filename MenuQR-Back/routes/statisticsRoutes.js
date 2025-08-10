@@ -1,19 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const streamifier = require('streamifier');
-const fs = require('fs');
-const path = require('path');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-
+const { authenticateToken } = require('../middleware/auth');
 
 // ======================
 // ANALYTICS & REPORTS
 // ======================
 
-// Get order statistics for a restaurant
-router.get('/:restaurant_id/analytics/orders', async (req, res) => {
+// Get order analytics for a restaurant
+router.get('/:restaurant_id/analytics/orders', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurants/:restaurant_id/analytics/orders - Request received');
   
   const { restaurant_id } = req.params;
@@ -49,8 +44,8 @@ router.get('/:restaurant_id/analytics/orders', async (req, res) => {
   }
 });
 
-// Get popular dishes for a restaurant
-router.get('/:restaurant_id/analytics/popular_dishes', async (req, res) => {
+// Get popular dishes analytics
+router.get('/:restaurant_id/analytics/popular_dishes', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurants/:restaurant_id/analytics/popular_dishes - Request received');
   
   const { restaurant_id } = req.params;
@@ -83,8 +78,8 @@ router.get('/:restaurant_id/analytics/popular_dishes', async (req, res) => {
   }
 });
 
-// Get daily revenue for a restaurant
-router.get('/:restaurant_id/analytics/revenue', async (req, res) => {
+// Get revenue analytics
+router.get('/:restaurant_id/analytics/revenue', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurants/:restaurant_id/analytics/revenue - Request received');
   
   const { restaurant_id } = req.params;
@@ -120,12 +115,11 @@ router.get('/:restaurant_id/analytics/revenue', async (req, res) => {
   }
 });
 
-
 // ======================
 // CUSTOMER FEEDBACK & RATINGS
 // ======================
 
-// Rate a dish (simplified rating system)
+// Rate a dish (public endpoint for customers)
 router.post('/dishes/rate', async (req, res) => {
   console.log('POST /api/restaurants/dishes/rate - Request received');
   console.log('Request body:', req.body);
@@ -165,7 +159,7 @@ router.post('/dishes/rate', async (req, res) => {
   }
 });
 
-// Get dish ratings and average
+// Get dish ratings (public endpoint)
 router.get('/dishes/:dish_id/ratings', async (req, res) => {
   console.log('GET /api/restaurants/dishes/:dish_id/ratings - Request received');
   

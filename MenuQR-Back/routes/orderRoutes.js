@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { authenticateToken } = require('../middleware/auth');
 const streamifier = require('streamifier');
 const fs = require('fs');
 const path = require('path');
@@ -13,23 +14,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 // ======================
 // CLIENT MANAGEMENT
@@ -102,7 +88,7 @@ router.post('/clients/external/add', async (req, res) => {
 });
 
 // Get all internal clients
-router.get('/clients/internal', async (req, res) => {
+router.get('/clients/internal', authenticateToken, async (req, res) => {
   console.log('GET /api/order/clients/internal - Request received');
   
   try {
@@ -117,7 +103,7 @@ router.get('/clients/internal', async (req, res) => {
 });
 
 // Get all external clients
-router.get('/clients/external', async (req, res) => {
+router.get('/clients/external', authenticateToken, async (req, res) => {
   console.log('GET /api/order/clients/external - Request received');
   
   try {
@@ -132,7 +118,7 @@ router.get('/clients/external', async (req, res) => {
 });
 
 // Delete internal client
-router.post('/clients/internal/delete', async (req, res) => {
+router.post('/clients/internal/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/order/clients/internal/delete - Request received');
   console.log('Request body:', req.body);
   
@@ -154,7 +140,7 @@ router.post('/clients/internal/delete', async (req, res) => {
 });
 
 // Delete external client
-router.post('/clients/external/delete', async (req, res) => {
+router.post('/clients/external/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/order/clients/external/delete - Request received');
   console.log('Request body:', req.body);
   
@@ -180,7 +166,7 @@ router.post('/clients/external/delete', async (req, res) => {
 // ======================
 
 // Create a new order
-router.post('/add', async (req, res) => {
+router.post('/add', authenticateToken, async (req, res) => {
   console.log('POST /api/order/add - Request received');
   console.log('Request body:', req.body);
   
@@ -233,7 +219,7 @@ router.post('/add', async (req, res) => {
 });
 
 // Get all orders for a restaurant
-router.get('/allOrders', async (req, res) => {
+router.get('/allOrders', authenticateToken, async (req, res) => {
   console.log('GET /api/order/allOrders - Request received');
   
   const { status, date } = req.query;
@@ -272,7 +258,7 @@ router.get('/allOrders', async (req, res) => {
 });
 
 // Update order status
-router.post('/update_status', async (req, res) => {
+router.post('/update_status', authenticateToken, async (req, res) => {
   console.log('POST /api/order/update_status - Request received');
   console.log('Request body:', req.body);
   
@@ -298,7 +284,7 @@ router.post('/update_status', async (req, res) => {
 });
 
 // Cancel order
-router.post('/cancel', async (req, res) => {
+router.post('/cancel', authenticateToken, async (req, res) => {
   console.log('POST /api/order/cancel - Request received');
   console.log('Request body:', req.body);
   
@@ -320,7 +306,7 @@ router.post('/cancel', async (req, res) => {
 });
 
 // Delete order (complete removal)
-router.post('/delete', async (req, res) => {
+router.post('/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/order/delete - Request received');
   console.log('Request body:', req.body);
   
@@ -342,7 +328,7 @@ router.post('/delete', async (req, res) => {
 });
 
 // Add item to existing order
-router.post('/add_item', async (req, res) => {
+router.post('/add_item', authenticateToken, async (req, res) => {
   console.log('POST /api/order/add_item - Request received');
   console.log('Request body:', req.body);
   
@@ -372,7 +358,7 @@ router.post('/add_item', async (req, res) => {
 });
 
 // Remove item from order
-router.post('/remove_item', async (req, res) => {
+router.post('/remove_item', authenticateToken, async (req, res) => {
   console.log('POST /api/order/remove_item - Request received');
   console.log('Request body:', req.body);
   
@@ -394,7 +380,7 @@ router.post('/remove_item', async (req, res) => {
 });
 
 // Update item quantity in order
-router.post('/update_item_quantity', async (req, res) => {
+router.post('/update_item_quantity', authenticateToken, async (req, res) => {
   console.log('POST /api/order/update_item_quantity - Request received');
   console.log('Request body:', req.body);
   
@@ -421,7 +407,7 @@ router.post('/update_item_quantity', async (req, res) => {
 });
 
 // Get specific order with items
-router.get('/:order_id', async (req, res) => {
+router.get('/:order_id', authenticateToken, async (req, res) => {
   console.log('GET /api/order/:order_id - Request received');
   
   const { order_id } = req.params;
@@ -470,7 +456,7 @@ router.get('/:order_id', async (req, res) => {
 // ======================
 
 // Get table status for internal clients
-router.get('/tables/status', async (req, res) => {
+router.get('/tables/status', authenticateToken, async (req, res) => {
   console.log('GET /api/order/tables/status - Request received');
 
   try {
@@ -502,9 +488,8 @@ router.get('/tables/status', async (req, res) => {
   }
 });
 
-
 // Get live kitchen orders (pending/preparing)
-router.get('/kitchen/live_orders', async (req, res) => {
+router.get('/kitchen/live_orders', authenticateToken, async (req, res) => {
   console.log('GET /api/order/kitchen/live_orders - Request received');
 
   try {
@@ -539,7 +524,7 @@ router.get('/kitchen/live_orders', async (req, res) => {
 });
 
 // Get order queue with estimated wait times
-router.get('/orders/queue', async (req, res) => {
+router.get('/orders/queue', authenticateToken, async (req, res) => {
   console.log('GET /api/order/orders/queue - Request received');
 
   try {

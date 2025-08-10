@@ -1,14 +1,12 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { sectionAPI, menuAPI, dishAPI } from '../utils/api';
 import DishCard from '../components/UI/DishCard';
 import DishInput from '../components/UI/DishCardInput';
 import MyButton from '../components/UI/Button';
 import QRCodeModal from '../components/QRCodeModal';
 import { v4 as uuidv4 } from 'uuid';
 import { FaPlus, FaCheck } from 'react-icons/fa';
-import { CATEGORIES } from '../constants/categories';
 import { UtensilsCrossed } from 'lucide-react';
 
 const AddNewMenuPage = () => {
@@ -16,39 +14,115 @@ const AddNewMenuPage = () => {
   const isRTL = i18n.language === 'ar';
   const [menuName, setMenuName] = useState('');
   const [dishes, setDishes] = useState([]);
+  const [sections, setSections] = useState([]);
   const [showAddDishForm, setShowAddDishForm] = useState(false);
   const [editingDishId, setEditingDishId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [createdMenuData, setCreatedMenuData] = useState(null);
 
+  // Fetch sections on component mount
+  useEffect(() => {
+    const fetchSections = async () => {
+      try {
+        const sectionsData = await sectionAPI.getAll();
+        setSections(sectionsData);
+      } catch (error) {
+        console.error('Error fetching sections:', error);
+      }
+    };
+
+    fetchSections();
+  }, []);
+
   const handleAddDishSubmit = (dishData) => {
+    console.log('Adding dish with data:', dishData);
+    
+    // Create image preview URL if image is a File
+    let imagePreview = null;
+    if (dishData.image instanceof File) {
+      imagePreview = URL.createObjectURL(dishData.image);
+    } else if (typeof dishData.image === 'string') {
+      imagePreview = dishData.image;
+    }
+    
     const newDish = {
       id: uuidv4(),
-      ...dishData,
-      category: dishData.category || CATEGORIES[0],
+      name: dishData.name,
+      description: dishData.description,
+      price: dishData.price,
+      section_id: dishData.section_id || (sections.length > 0 ? sections[0].id : null),
+      image: dishData.image, // Keep original File object for upload
+      imagePreview: imagePreview // URL for display
     };
+    
+    console.log('New dish object:', newDish);
     setDishes((prev) => [...prev, newDish]);
     setShowAddDishForm(false);
   };
 
   const handleEditDishSubmit = (dishData) => {
+    // Don't revoke blob URLs here - let the editing process handle them
+    
+    // Create image preview URL if image is a File
+    let imagePreview = null;
+    if (dishData.image instanceof File) {
+      imagePreview = URL.createObjectURL(dishData.image);
+    } else if (typeof dishData.image === 'string') {
+      imagePreview = dishData.image;
+    } else {
+      // If no new image provided, keep the existing preview
+      const existingDish = dishes.find(dish => dish.id === editingDishId);
+      imagePreview = existingDish?.imagePreview;
+    }
+
     setDishes((prev) =>
-      prev.map((dish) => (dish.id === editingDishId ? { ...dish, ...dishData } : dish))
+      prev.map((dish) => (dish.id === editingDishId ? { 
+        ...dish, 
+        ...dishData,
+        image: dishData.image || dish.image, // Keep existing image if no new one
+        imagePreview: imagePreview
+      } : dish))
     );
     setEditingDishId(null);
   };
 
   const handleRemoveDish = (id) => {
+    // Clean up object URLs to prevent memory leaks
+    const dishToRemove = dishes.find(dish => dish.id === id);
+    if (dishToRemove && dishToRemove.imagePreview && dishToRemove.imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(dishToRemove.imagePreview);
+    }
     setDishes((prev) => prev.filter((dish) => dish.id !== id));
   };
 
   const handleEditDish = (id) => {
+    // Always create a fresh blob URL for the dish being edited if it has a File
+    const dishToEdit = dishes.find(dish => dish.id === id);
+    if (dishToEdit && dishToEdit.image instanceof File) {
+      // Revoke the old blob URL if it exists
+      if (dishToEdit.imagePreview && dishToEdit.imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(dishToEdit.imagePreview);
+      }
+      
+      // Create a fresh blob URL
+      const freshBlobUrl = URL.createObjectURL(dishToEdit.image);
+      setDishes((prev) =>
+        prev.map((dish) => (dish.id === id ? { 
+          ...dish, 
+          imagePreview: freshBlobUrl
+        } : dish))
+      );
+    }
+    
     setEditingDishId(id);
     setShowAddDishForm(false);
   };
 
-  const handleCancelEdit = () => setEditingDishId(null);
+  const handleCancelEdit = () => {
+    // Don't revoke blob URL when canceling edit, just close the form
+    setEditingDishId(null);
+  };
   const handleCancelAdd = () => setShowAddDishForm(false);
 
   const handleConfirm = async () => {
@@ -58,17 +132,67 @@ const AddNewMenuPage = () => {
 
     try {
       const createdDate = new Date().toISOString().split('T')[0];
-      const menuData = { 
-        id: uuidv4(), // Generate unique ID for the menu
-        menuName, 
-        createdDate, 
-        dishes 
-      };
       
-      console.log('Menu Data:', menuData);
-      await new Promise((res) => setTimeout(res, 1000));
-      
+      // Step 1: Create the menu
+      const menuResult = await menuAPI.create({
+        name: menuName,
+        date: createdDate
+      });
+      const menuId = menuResult.menu_id;
+      console.log('Menu created with ID:', menuId);
+
+      // Step 2: Add all dishes to the menu with images
+      const dishPromises = dishes.map(async (dish) => {
+        console.log(`Processing dish: ${dish.name}`);
+        console.log(`Image type: ${dish.image ? dish.image.constructor.name : 'none'}`);
+        
+        // First, create the dish
+        const dishResult = await dishAPI.create({
+          name: dish.name,
+          description: dish.description,
+          price: dish.price,
+          section_id: dish.section_id,
+          menu_id: menuId
+        });
+        const dishId = dishResult.dish_id;
+        console.log(`Dish created with ID: ${dishId}`);
+
+        // Then, upload the image if it exists and is a File
+        if (dish.image && dish.image instanceof File) {
+          console.log(`Uploading image for dish: ${dish.name}`);
+          
+          try {
+            const imageResult = await dishAPI.uploadImage(dishId, dish.image);
+            console.log(`Image uploaded successfully for dish "${dish.name}":`, imageResult);
+          } catch (imageError) {
+            console.warn(`Failed to upload image for dish "${dish.name}":`, imageError);
+            // Don't throw error for image upload failure, just log it
+          }
+        } else {
+          console.log(`No image to upload for dish: ${dish.name}`);
+        }
+
+        return dishResult;
+      });
+
+      // Wait for all dishes to be created
+      await Promise.all(dishPromises);
+      console.log('All dishes created successfully with images');
+
+      // Clean up object URLs
+      dishes.forEach(dish => {
+        if (dish.imagePreview && dish.imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(dish.imagePreview);
+        }
+      });
+
       // Store the created menu data and show QR modal
+      const menuData = {
+        id: menuId,
+        menuName,
+        createdDate,
+        dishes
+      };
       setCreatedMenuData(menuData);
       setShowQRModal(true);
       
@@ -76,8 +200,8 @@ const AddNewMenuPage = () => {
       setMenuName('');
       setDishes([]);
     } catch (err) {
-      console.error(err);
-      alert(t('error_creating_menu'));
+      console.error('Error creating menu:', err);
+      alert(`${t('error_creating_menu')}: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -130,23 +254,27 @@ const AddNewMenuPage = () => {
             )}
           </div>
 
-          {showAddDishForm && <DishInput onSubmit={handleAddDishSubmit} onCancel={handleCancelAdd} />}
-          {editingDish && <DishInput onSubmit={handleEditDishSubmit} onCancel={handleCancelEdit} initialData={editingDish} />}
+          {showAddDishForm && <DishInput onSubmit={handleAddDishSubmit} onCancel={handleCancelAdd} sections={sections} />}
+          {editingDish && <DishInput onSubmit={handleEditDishSubmit} onCancel={handleCancelEdit} initialData={editingDish} sections={sections} />}
 
           {dishes.length > 0 ? (
             <div className="space-y-4">
-              {dishes.map((dish) => (
-                <DishCard
-                  key={dish.id}
-                  id={dish.id} 
-                  image={dish.image || '/api/placeholder/200/200'}
-                  name={dish.name}
-                  description={dish.description}
-                  price={dish.price}
-                  onUpdate={handleEditDish} 
-                  onDelete={handleRemoveDish} 
+              {dishes.map((dish) => {
+                console.log('Rendering dish:', dish.name, 'with imagePreview:', dish.imagePreview);
+                return (
+                  <DishCard
+                    key={dish.id}
+                    id={dish.id} 
+                    // Use imagePreview for display, fallback to placeholder
+                    image={dish.imagePreview || '/api/placeholder/200/200'}
+                    name={dish.name}
+                    description={dish.description}
+                    price={dish.price}
+                    onUpdate={handleEditDish} 
+                    onDelete={handleRemoveDish} 
                   />
-              ))}
+                );
+              })}
             </div>
           ) : (
             !showAddDishForm && !editingDishId && (

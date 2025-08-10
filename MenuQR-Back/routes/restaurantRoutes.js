@@ -4,8 +4,20 @@ const db = require('../db');
 const streamifier = require('streamifier');
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { authenticateToken } = require('../middleware/auth');
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -14,9 +26,8 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 
-
 // Get restaurant profile
-router.get('/profile', async (req, res) => {
+router.get('/profile', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurant/profile - Request received');
   
   
@@ -35,7 +46,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // Update restaurant profile
-router.post('/profile/modify', async (req, res) => {
+router.post('/profile/modify', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/profile/modify - Request received');
   console.log('Request body:', req.body);
   
@@ -57,16 +68,7 @@ router.post('/profile/modify', async (req, res) => {
 });
 
 // Upload restaurant logo
-router.post('/logo/upload', (req, res, next) => {
-  const upload = req.app.get('upload');
-  upload.single('logo')(req, res, function (err) {
-    if (err) {
-      return res.status(400).json({ error: 'Logo upload failed', details: err.message });
-    }
-    next();
-  });
-}, async (req, res) => {
-  const cloudinary = req.app.get('cloudinary');
+router.post('/logo/upload', authenticateToken, upload.single('logo'), async (req, res) => {
   const { restaurant_id } = req.body;
   
   if (!restaurant_id || !req.file) {
@@ -124,7 +126,7 @@ router.post('/logo/upload', (req, res, next) => {
 });
 
 // Get restaurant logo
-router.get('/:id/logo', async (req, res) => {
+router.get('/:id/logo', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurant/:id/logo - Request received');
   
   const { id } = req.params;
@@ -142,28 +144,6 @@ router.get('/:id/logo', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch restaurant logo', details: err.message });
   }
 });
-
-// ======================
-// MIDDLEWARE & UTILITIES
-// ======================
-
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 // ======================
 // ADVANCED FEATURES
@@ -211,7 +191,7 @@ router.get('/export/:menu_id', authenticateToken, async (req, res) => {
 });
 
 // Import menu data
-router.post('/import',authenticateToken, async (req, res) => {
+router.post('/import', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/import - Request received');
   
   const { menu_data, new_date, new_name } = req.body;
@@ -368,7 +348,7 @@ router.get('/backup', authenticateToken, async (req, res) => {
 });
 
 // Clean old data (older than specified days)
-router.post('/maintenance/cleanup', async (req, res) => {
+router.post('/maintenance/cleanup', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/maintenance/cleanup - Request received');
   console.log('Request body:', req.body);
 

@@ -140,6 +140,8 @@
     "clear": "Clear",
     "reset": "Reset",
     "submit": "Submit",
-    "required_field": "This field is required"
+    "required_field": "This field is required",
+    "section": "Section",
+    "menu_name_required": "Menu name is required"
   }
 }

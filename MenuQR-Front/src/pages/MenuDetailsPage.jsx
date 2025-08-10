@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FaArrowLeft } from 'react-icons/fa';
+import { menuAPI } from '../utils/api';
 
 import DishCard from '../components/UI/DishCard';
 import MyButton from '../components/UI/Button';
@@ -20,9 +21,7 @@ const MenuDetailsPage = () => {
   useEffect(() => {
     const fetchMenuDetails = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/menu/${id}/full`);
-        if (!res.ok) throw new Error('Failed to fetch menu details organised by sections');
-        const data = await res.json();
+        const data = await menuAPI.getFull(id);
 
         // Extract sections and flatten dishes from nested structure
         const sectionsData = data.sections || [];
