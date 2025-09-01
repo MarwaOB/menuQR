@@ -1,25 +1,29 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MenuCard from '../components/UI/MenuCard';
 import { useTranslation } from 'react-i18next';
 import { sectionAPI, menuAPI, dishAPI } from '../utils/api';
+import { toast } from 'react-toastify';
 import DishCard from '../components/UI/DishCard';
 import DishInput from '../components/UI/DishCardInput';
 import MyButton from '../components/UI/Button';
-import QRCodeModal from '../components/QRCodeModal';
+
 import { v4 as uuidv4 } from 'uuid';
 import { FaPlus, FaCheck, FaSpinner, FaExclamationTriangle, FaTrash } from 'react-icons/fa';
 import { UtensilsCrossed, Copy } from 'lucide-react';
 import InputField from '../components/UI/InputField';
 import CategoryFilterBar from '../components/UI/CategoryFilterBar';
 import { CATEGORIES } from '../constants/categories';
-import Modal from '../components/UI/Modal'; 
+import Modal from '../components/UI/Modal';
+import config from '../config';
 
-const API_BASE_URL =  'http://localhost:3000';
+const API_BASE_URL = config.API_BASE_URL;
 
 const CreateFromExistingMenuPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [menus, setMenus] = useState([]);
   const [sections, setSections] = useState([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
@@ -29,8 +33,7 @@ const CreateFromExistingMenuPage = () => {
   const [newMenuDate, setNewMenuDate] = useState('');
   const [editableDishes, setEditableDishes] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [createdMenuData, setCreatedMenuData] = useState(null);
+
   const [isLoading, setIsLoading] = useState(false);
   
   const [editingDishId, setEditingDishId] = useState(null);
@@ -257,24 +260,9 @@ const CreateFromExistingMenuPage = () => {
         }
       });
 
-      const createdMenuData = {
-        id: menuId,
-        menuName: newMenuName,
-        createdDate: createdDate,
-        dishes: editableDishes,
-      };
-
-      setCreatedMenuData(createdMenuData);
-      setShowQRModal(true);
-
-      // Reset form
-      setNewMenuName('');
-      setNewMenuDate('');
-      setEditableDishes([]);
-      setSelectedMenuId(null);
-      setSelectedMenuData(null);
-      setEditingDishId(null);
-      setShowAddDishForm(false);
+      // Show success message and navigate to dashboard
+      toast.success(t('menu_created_successfully'));
+      navigate('/dashboard');
 
     } catch (error) {
       console.error('Error creating menu:', error);
@@ -455,15 +443,7 @@ const CreateFromExistingMenuPage = () => {
         )}
       </div>
 
-      {/* QR Code Modal */}
-      <QRCodeModal
-        isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
-        menuName={createdMenuData?.menuName || ''}
-        menuData={createdMenuData}
-      />
-
-      {/* Delete Confirmation Modal */}
+{/* Delete Confirmation Modal */}
       <Modal isOpen={showDeleteModal} onClose={handleCancelDelete}>
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">

@@ -91,7 +91,21 @@ export default function ResetPasswordForm() {
         });
       }, 3000);
     } catch (err) {
-      setError(err.message || 'Failed to reset password. Please try again.');
+      // Handle validation errors from the backend
+      if (err.response && err.response.data && err.response.data.details) {
+        // Extract validation error messages
+        const validationErrors = err.response.data.details.map(detail => {
+          if (detail.path && detail.path[0] === 'newPassword') {
+            return detail.msg;
+          }
+          return detail.msg || 'Invalid input';
+        }).join(' ');
+        
+        setError(`Validation error: ${validationErrors}`);
+      } else {
+        // Fallback for other types of errors
+        setError(err.message || 'Failed to reset password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

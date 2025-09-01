@@ -22,36 +22,91 @@ if (!fs.existsSync(uploadsDir)) {
 // ======================
 
 // Add internal client (table)
-router.post('/clients/internal/add', async (req, res) => {
-  console.log('POST /api/order/clients/internal/add - Request received');
-  console.log('Request body:', req.body);
+router.post('/clients/internal/add', (req, res) => {
+  console.log('=== START: /api/order/clients/internal/add ===');
+  console.log('1. Request received at:', new Date().toISOString());
+  console.log('2. Request method:', req.method);
+  console.log('3. Request URL:', req.originalUrl);
+  console.log('4. Request headers:', JSON.stringify(req.headers, null, 2));
+  console.log('5. Raw request body:', req.body);
   
-  const { table_number } = req.body;
-
-  if (!table_number) {
-    return res.status(400).json({ error: 'Table number is required' });
-  }
-
-  try {
-    // Generate session token
-    const session_token = jwt.sign(
-      { table_number, type: 'internal' },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
-
-    const sql = 'INSERT INTO InternalClient (table_number, session_token) VALUES (?, ?)';
-    const result = await db.query(sql, [table_number, session_token]);
+  // Log raw body if available
+  let rawBody = '';
+  req.on('data', chunk => {
+    rawBody += chunk.toString();
+  });
+  
+  req.on('end', async () => {
+    console.log('6. Raw request body (from stream):', rawBody);
     
-    res.status(201).json({ 
-      message: 'Internal client created successfully', 
-      client_id: result[0].insertId,
-      session_token
-    });
-  } catch (err) {
-    console.error('Error in POST /api/order/clients/internal/add:', err);
-    res.status(500).json({ error: 'Failed to create internal client', details: err.message });
-  }
+    try {
+      // Parse the raw body if it's a string
+      let parsedBody = {};
+      try {
+        parsedBody = rawBody ? JSON.parse(rawBody) : req.body;
+      } catch (e) {
+        console.error('7. Error parsing request body:', e);
+        return res.status(400).json({ error: 'Invalid JSON in request body' });
+      }
+      
+      console.log('8. Parsed request body:', JSON.stringify(parsedBody, null, 2));
+      
+      // Check if body is empty
+      if (!parsedBody || Object.keys(parsedBody).length === 0) {
+        console.error('9. Error: Empty request body received');
+        return res.status(400).json({ error: 'Request body is empty' });
+      }
+      
+      const { table_number } = parsedBody;
+      
+      if (!table_number) {
+        console.error('10. Error: Missing table_number in request');
+        return res.status(400).json({ error: 'table_number is required' });
+      }
+      
+      console.log('11. Processing table number:', table_number);
+      
+      // Generate session token
+      const session_token = jwt.sign(
+        { table_number, type: 'internal' },
+        process.env.JWT_SECRET,
+        { expiresIn: '12h' }
+      );
+      
+      // Insert into database
+      const [result] = await db.query(
+        'INSERT INTO clients (table_number, session_token, client_type) VALUES (?, ?, ?)',
+        [table_number, session_token, 'internal']
+      );
+      
+      console.log('12. Client created with ID:', result.insertId);
+      
+      return res.status(201).json({
+        client_id: result.insertId,
+        table_number,
+        session_token,
+        client_type: 'internal'
+      });
+      
+    } catch (error) {
+      console.error('13. Error in request processing:', error);
+      return res.status(500).json({ 
+        error: 'Internal server error',
+        details: error.message 
+      });
+    }
+  });
+  
+  // Handle request errors
+  req.on('error', (error) => {
+    console.error('14. Request error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Error processing request',
+        details: error.message 
+      });
+    }
+  });
 });
 
 // Add external client
@@ -166,7 +221,7 @@ router.post('/clients/external/delete', authenticateToken, async (req, res) => {
 // ======================
 
 // Create a new order
-router.post('/add', authenticateToken, async (req, res) => {
+router.post('/add', async (req, res) => {
   console.log('POST /api/order/add - Request received');
   console.log('Request body:', req.body);
   
@@ -317,18 +372,45 @@ router.post('/delete', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM `Order` WHERE id=?';
-    await db.query(sql, [order_id]);
-    
-    res.status(200).json({ message: 'Order deleted successfully' });
+    // Start a transaction to ensure data consistency
+    await db.query('START TRANSACTION');
+
+    try {
+      // First, delete all order items associated with this order
+      await db.query('DELETE FROM OrderItem WHERE order_id = ?', [order_id]);
+      
+      // Then delete the order itself
+      await db.query('DELETE FROM `Order` WHERE id = ?', [order_id]);
+      
+      // Commit the transaction if both operations succeed
+      await db.query('COMMIT');
+      
+      res.status(200).json({ message: 'Order and associated items deleted successfully' });
+    } catch (err) {
+      // If any error occurs, rollback the transaction
+      await db.query('ROLLBACK');
+      throw err; // Re-throw the error to be caught by the outer catch
+    }
   } catch (err) {
     console.error('Error in POST /api/order/delete:', err);
-    res.status(500).json({ error: 'Failed to delete order', details: err.message });
+    
+    // Provide more specific error messages based on the error code
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      res.status(400).json({ 
+        error: 'Cannot delete order because it is referenced by other records',
+        details: 'Please ensure all related records are deleted first.'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to delete order', 
+        details: err.message 
+      });
+    }
   }
 });
 
 // Add item to existing order
-router.post('/add_item', authenticateToken, async (req, res) => {
+router.post('/add_item', async (req, res) => {
   console.log('POST /api/order/add_item - Request received');
   console.log('Request body:', req.body);
   
@@ -358,7 +440,7 @@ router.post('/add_item', authenticateToken, async (req, res) => {
 });
 
 // Remove item from order
-router.post('/remove_item', authenticateToken, async (req, res) => {
+router.post('/remove_item', async (req, res) => {
   console.log('POST /api/order/remove_item - Request received');
   console.log('Request body:', req.body);
   
@@ -380,7 +462,7 @@ router.post('/remove_item', authenticateToken, async (req, res) => {
 });
 
 // Update item quantity in order
-router.post('/update_item_quantity', authenticateToken, async (req, res) => {
+router.post('/update_item_quantity', async (req, res) => {
   console.log('POST /api/order/update_item_quantity - Request received');
   console.log('Request body:', req.body);
   

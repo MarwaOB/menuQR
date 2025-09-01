@@ -1,5 +1,6 @@
-// API base URL - adjust this based on your backend setup
-const API_BASE_URL = 'http://localhost:3000/api';
+// api.js file 
+import config from '../config';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Helper function to get auth token
 const getAuthToken = () => {
@@ -38,7 +39,18 @@ const apiRequest = async (endpoint, options = {}) => {
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+    let data;
+    
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      // If response is not JSON, use the status text as the error message
+      if (!response.ok) {
+        throw new Error(response.statusText || 'Request failed');
+      }
+      // If response is OK but not JSON, return empty object
+      return {};
+    }
 
     if (!response.ok) {
       // Handle authentication errors
@@ -48,12 +60,24 @@ const apiRequest = async (endpoint, options = {}) => {
         window.location.href = '/login';
         throw new Error('Authentication required');
       }
-      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      
+      // Create a custom error with response data
+      const error = new Error(data.error || `HTTP error! status: ${response.status}`);
+      error.response = { data, status: response.status };
+      throw error;
     }
 
     return data;
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error);
+    
+    // If it's not our custom error, wrap it to ensure consistent structure
+    if (!error.response) {
+      const wrappedError = new Error(error.message || 'Network error');
+      wrappedError.response = { data: { error: error.message } };
+      throw wrappedError;
+    }
+    
     throw error;
   }
 };
@@ -128,11 +152,16 @@ export const restaurantAPI = {
 
   getBackup: () => apiRequest('/restaurant/backup'),
 
-  cleanup: (daysOld = 90) =>
-    apiRequest('/restaurant/maintenance/cleanup', {
+  cleanup(daysOld = 90) {
+    return apiRequest('/restaurant/cleanup', {
       method: 'POST',
-      body: JSON.stringify({ days_old: daysOld }),
-    }),
+      body: JSON.stringify({ days: daysOld })
+    });
+  },
+  
+  getQRCode() {
+    return apiRequest('/restaurant/qrcode');
+  },
 };
 
 // Menu API
@@ -316,28 +345,18 @@ export const orderAPI = {
 
 // Statistics API
 export const statisticsAPI = {
-  getOrderAnalytics: (restaurantId, params = {}) => {
+  getOrderAnalytics: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiRequest(`/statistics/${restaurantId}/analytics/orders?${queryString}`);
+    return apiRequest(`/statistics/analytics/orders?${queryString}`);
   },
 
-  getPopularDishes: (restaurantId, limit = 10) =>
-    apiRequest(`/statistics/${restaurantId}/analytics/popular_dishes?limit=${limit}`),
+  getPopularDishes: (limit = 10) =>
+    apiRequest(`/statistics/analytics/popular_dishes?limit=${limit}`),
 
-  getRevenue: (restaurantId, params = {}) => {
+  getRevenue: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiRequest(`/statistics/${restaurantId}/analytics/revenue?${queryString}`);
+    return apiRequest(`/statistics/analytics/revenue?${queryString}`);
   },
-
-  // Public endpoints (no auth required)
-  rateDish: (ratingData) =>
-    apiRequest('/statistics/dishes/rate', {
-      method: 'POST',
-      body: JSON.stringify(ratingData),
-    }),
-
-  getDishRatings: (dishId) =>
-    apiRequest(`/statistics/dishes/${dishId}/ratings`),
 };
 
 export default {

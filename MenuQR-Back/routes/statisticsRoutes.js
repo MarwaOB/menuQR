@@ -7,48 +7,101 @@ const { authenticateToken } = require('../middleware/auth');
 // ANALYTICS & REPORTS
 // ======================
 
-// Get order analytics for a restaurant
-router.get('/:restaurant_id/analytics/orders', authenticateToken, async (req, res) => {
-  console.log('GET /api/restaurants/:restaurant_id/analytics/orders - Request received');
+// Get order analytics for a restaurant with period comparison
+router.get('/analytics/orders', authenticateToken, async (req, res) => {
+  console.log('GET /api/statistics/analytics/orders - Request received');
   
-  const { restaurant_id } = req.params;
   const { start_date, end_date } = req.query;
   
   try {
-    let sql = `
+    // Current period query
+    let currentSql = `
       SELECT 
         COUNT(*) as total_orders,
-        COUNT(CASE WHEN o.status = 'pending' THEN 1 END) as pending_orders,
-        COUNT(CASE WHEN o.status = 'preparing' THEN 1 END) as preparing_orders,
-        COUNT(CASE WHEN o.status = 'served' THEN 1 END) as served_orders,
-        COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_orders,
-        COUNT(CASE WHEN o.client_type = 'internal' THEN 1 END) as internal_orders,
-        COUNT(CASE WHEN o.client_type = 'external' THEN 1 END) as external_orders
-      FROM \`Order\` o
-      JOIN Menu m ON o.menu_id = m.id
-      WHERE m.restaurant_id = ?
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
+        COUNT(CASE WHEN status = 'preparing' THEN 1 END) as preparing_orders,
+        COUNT(CASE WHEN status = 'served' THEN 1 END) as served_orders,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
+        COUNT(CASE WHEN client_type = 'internal' THEN 1 END) as internal_orders,
+        COUNT(CASE WHEN client_type = 'external' THEN 1 END) as external_orders
+      FROM \`Order\`
     `;
-    const params = [restaurant_id];
+    
+    let currentParams = [];
+    let previousSql = currentSql;
+    let previousParams = [];
 
     if (start_date && end_date) {
-      sql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
-      params.push(start_date, end_date);
+      currentSql += ' WHERE DATE(created_at) BETWEEN ? AND ?';
+      currentParams.push(start_date, end_date);
+      
+      // Calculate previous period dates
+      const startDateObj = new Date(start_date);
+      const endDateObj = new Date(end_date);
+      const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+      
+      const prevEndDate = new Date(startDateObj);
+      prevEndDate.setDate(prevEndDate.getDate() - 1);
+      const prevStartDate = new Date(prevEndDate);
+      prevStartDate.setDate(prevStartDate.getDate() - daysDiff);
+      
+      previousSql += ' WHERE DATE(created_at) BETWEEN ? AND ?';
+      previousParams.push(
+        prevStartDate.toISOString().split('T')[0],
+        prevEndDate.toISOString().split('T')[0]
+      );
     }
 
-    const [rows] = await db.query(sql, params);
+    // Execute both queries
+    const [currentRows] = await db.query(currentSql, currentParams);
+    const [previousRows] = await db.query(previousSql, previousParams);
     
-    res.status(200).json(rows[0]);
+    const current = currentRows[0] || {
+      total_orders: 0,
+      pending_orders: 0,
+      preparing_orders: 0,
+      served_orders: 0,
+      cancelled_orders: 0,
+      internal_orders: 0,
+      external_orders: 0
+    };
+
+    const previous = previousRows[0] || {
+      total_orders: 0,
+      pending_orders: 0,
+      preparing_orders: 0,
+      served_orders: 0,
+      cancelled_orders: 0,
+      internal_orders: 0,
+      external_orders: 0
+    };
+
+    // Calculate percentage changes
+    const calculateChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    const result = {
+      ...current,
+      changes: {
+        total_orders: calculateChange(current.total_orders, previous.total_orders),
+        internal_orders: calculateChange(current.internal_orders, previous.internal_orders),
+        external_orders: calculateChange(current.external_orders, previous.external_orders)
+      }
+    };
+    
+    res.status(200).json(result);
   } catch (err) {
-    console.error('Error in GET /api/restaurants/:restaurant_id/analytics/orders:', err);
+    console.error('Error in GET /api/statistics/analytics/orders:', err);
     res.status(500).json({ error: 'Failed to fetch order analytics', details: err.message });
   }
 });
 
 // Get popular dishes analytics
-router.get('/:restaurant_id/analytics/popular_dishes', authenticateToken, async (req, res) => {
-  console.log('GET /api/restaurants/:restaurant_id/analytics/popular_dishes - Request received');
+router.get('/analytics/popular_dishes', authenticateToken, async (req, res) => {
+  console.log('GET /api/statistics/analytics/popular_dishes - Request received');
   
-  const { restaurant_id } = req.params;
   const { limit = 10 } = req.query;
   
   try {
@@ -56,152 +109,121 @@ router.get('/:restaurant_id/analytics/popular_dishes', authenticateToken, async 
       SELECT 
         d.id, d.name, d.description, d.price,
         s.name as section_name,
-        SUM(oi.quantity) as total_ordered,
+        COALESCE(SUM(oi.quantity), 0) as total_ordered,
         COUNT(DISTINCT o.id) as times_ordered
       FROM Dish d
       JOIN Section s ON d.section_id = s.id
-      JOIN OrderItem oi ON d.id = oi.dish_id
-      JOIN \`Order\` o ON oi.order_id = o.id
-      JOIN Menu m ON o.menu_id = m.id
-      WHERE m.restaurant_id = ? AND o.status != 'cancelled'
-      GROUP BY d.id
-      ORDER BY total_ordered DESC
+      LEFT JOIN OrderItem oi ON d.id = oi.dish_id
+      LEFT JOIN \`Order\` o ON oi.order_id = o.id AND o.status != 'cancelled'
+      GROUP BY d.id, d.name, d.description, d.price, s.name
+      ORDER BY total_ordered DESC, times_ordered DESC
       LIMIT ?
     `;
     
-    const [rows] = await db.query(sql, [restaurant_id, parseInt(limit)]);
+    const [rows] = await db.query(sql, [parseInt(limit)]);
     
     res.status(200).json(rows);
   } catch (err) {
-    console.error('Error in GET /api/restaurants/:restaurant_id/analytics/popular_dishes:', err);
+    console.error('Error in GET /api/statistics/analytics/popular_dishes:', err);
     res.status(500).json({ error: 'Failed to fetch popular dishes', details: err.message });
   }
 });
 
-// Get revenue analytics
-router.get('/:restaurant_id/analytics/revenue', authenticateToken, async (req, res) => {
-  console.log('GET /api/restaurants/:restaurant_id/analytics/revenue - Request received');
+// Get revenue analytics with period comparison
+router.get('/analytics/revenue', authenticateToken, async (req, res) => {
+  console.log('GET /api/statistics/analytics/revenue - Request received');
   
-  const { restaurant_id } = req.params;
   const { start_date, end_date } = req.query;
   
   try {
-    let sql = `
+    // Current period revenue
+    let currentSql = `
       SELECT 
         DATE(o.created_at) as order_date,
-        SUM(d.price * oi.quantity) as daily_revenue,
+        COALESCE(SUM(d.price * oi.quantity), 0) as daily_revenue,
         COUNT(DISTINCT o.id) as orders_count
       FROM \`Order\` o
-      JOIN Menu m ON o.menu_id = m.id
       JOIN OrderItem oi ON o.id = oi.order_id
       JOIN Dish d ON oi.dish_id = d.id
-      WHERE m.restaurant_id = ? AND o.status = 'served'
+      WHERE o.status = 'served'
     `;
-    const params = [restaurant_id];
+    
+    let totalRevenueSql = `
+      SELECT COALESCE(SUM(d.price * oi.quantity), 0) as total_revenue
+      FROM \`Order\` o
+      JOIN OrderItem oi ON o.id = oi.order_id
+      JOIN Dish d ON oi.dish_id = d.id
+      WHERE o.status = 'served'
+    `;
+    
+    let currentParams = [];
+    let totalCurrentParams = [];
+    let totalPreviousParams = [];
 
     if (start_date && end_date) {
-      sql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
-      params.push(start_date, end_date);
+      currentSql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
+      currentParams.push(start_date, end_date);
+      
+      totalRevenueSql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
+      totalCurrentParams.push(start_date, end_date);
+      
+      // Calculate previous period for total revenue comparison
+      const startDateObj = new Date(start_date);
+      const endDateObj = new Date(end_date);
+      const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+      
+      const prevEndDate = new Date(startDateObj);
+      prevEndDate.setDate(prevEndDate.getDate() - 1);
+      const prevStartDate = new Date(prevEndDate);
+      prevStartDate.setDate(prevStartDate.getDate() - daysDiff);
+      
+      const previousRevenueSql = totalRevenueSql.replace(
+        'AND DATE(o.created_at) BETWEEN ? AND ?',
+        'AND DATE(o.created_at) BETWEEN ? AND ?'
+      );
+      
+      totalPreviousParams.push(
+        prevStartDate.toISOString().split('T')[0],
+        prevEndDate.toISOString().split('T')[0]
+      );
     }
 
-    sql += ' GROUP BY DATE(o.created_at) ORDER BY order_date DESC';
+    currentSql += ' GROUP BY DATE(o.created_at) ORDER BY order_date DESC';
 
-    const [rows] = await db.query(sql, params);
+    // Execute queries
+    const [dailyRows] = await db.query(currentSql, currentParams);
+    const [currentRevenueRows] = await db.query(totalRevenueSql, totalCurrentParams);
     
-    res.status(200).json(rows);
-  } catch (err) {
-    console.error('Error in GET /api/restaurants/:restaurant_id/analytics/revenue:', err);
-    res.status(500).json({ error: 'Failed to fetch revenue analytics', details: err.message });
-  }
-});
-
-// ======================
-// CUSTOMER FEEDBACK & RATINGS
-// ======================
-
-// Rate a dish (public endpoint for customers)
-router.post('/dishes/rate', async (req, res) => {
-  console.log('POST /api/restaurants/dishes/rate - Request received');
-  console.log('Request body:', req.body);
-  
-  const { dish_id, rating, comment, client_id, client_type } = req.body;
-
-  if (!dish_id || !rating || !client_id || !client_type) {
-    return res.status(400).json({ error: 'Dish ID, rating, client ID and client type are required' });
-  }
-
-  if (rating < 1 || rating > 5) {
-    return res.status(400).json({ error: 'Rating must be between 1 and 5' });
-  }
-
-  try {
-    // Create a simple rating table if it doesn't exist
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS DishRating (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        dish_id INT,
-        rating INT CHECK (rating BETWEEN 1 AND 5),
-        comment TEXT,
-        client_id INT,
-        client_type ENUM('internal', 'external'),
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (dish_id) REFERENCES Dish(id) ON DELETE CASCADE
-      ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci
-    `);
-
-    const sql = 'INSERT INTO DishRating (dish_id, rating, comment, client_id, client_type) VALUES (?, ?, ?, ?, ?)';
-    await db.query(sql, [dish_id, rating, comment, client_id, client_type]);
-    
-    res.status(201).json({ message: 'Rating submitted successfully' });
-  } catch (err) {
-    console.error('Error in POST /api/restaurants/dishes/rate:', err);
-    res.status(500).json({ error: 'Failed to submit rating', details: err.message });
-  }
-});
-
-// Get dish ratings (public endpoint)
-router.get('/dishes/:dish_id/ratings', async (req, res) => {
-  console.log('GET /api/restaurants/dishes/:dish_id/ratings - Request received');
-  
-  const { dish_id } = req.params;
-  
-  try {
-    const ratingsSql = `
-      SELECT 
-        dr.rating, dr.comment, dr.created_at, dr.client_type,
-        CASE 
-          WHEN dr.client_type = 'internal' THEN CONCAT('Table ', ic.table_number)
-          ELSE 'Delivery Customer'
-        END as client_info
-      FROM DishRating dr
-      LEFT JOIN InternalClient ic ON dr.client_id = ic.id AND dr.client_type = 'internal'
-      WHERE dr.dish_id = ?
-      ORDER BY dr.created_at DESC
-    `;
-
-    const avgSql = `
-      SELECT 
-        AVG(rating) as average_rating,
-        COUNT(*) as total_ratings,
-        COUNT(CASE WHEN rating = 5 THEN 1 END) as five_stars,
-        COUNT(CASE WHEN rating = 4 THEN 1 END) as four_stars,
-        COUNT(CASE WHEN rating = 3 THEN 1 END) as three_stars,
-        COUNT(CASE WHEN rating = 2 THEN 1 END) as two_stars,
-        COUNT(CASE WHEN rating = 1 THEN 1 END) as one_star
-      FROM DishRating 
-      WHERE dish_id = ?
-    `;
-
-    const [ratingsRows] = await db.query(ratingsSql, [dish_id]);
-    const [avgRows] = await db.query(avgSql, [dish_id]);
+    let revenueChange = 0;
+    if (start_date && end_date && totalPreviousParams.length > 0) {
+      const previousRevenueSql = `
+        SELECT COALESCE(SUM(d.price * oi.quantity), 0) as total_revenue
+        FROM \`Order\` o
+        JOIN OrderItem oi ON o.id = oi.order_id
+        JOIN Dish d ON oi.dish_id = d.id
+        WHERE o.status = 'served' AND DATE(o.created_at) BETWEEN ? AND ?
+      `;
+      
+      const [previousRevenueRows] = await db.query(previousRevenueSql, totalPreviousParams);
+      
+      const currentTotal = currentRevenueRows[0]?.total_revenue || 0;
+      const previousTotal = previousRevenueRows[0]?.total_revenue || 0;
+      
+      if (previousTotal > 0) {
+        revenueChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+      } else if (currentTotal > 0) {
+        revenueChange = 100;
+      }
+    }
     
     res.status(200).json({
-      ratings: ratingsRows,
-      statistics: avgRows[0]
+      daily_data: dailyRows,
+      total_revenue: currentRevenueRows[0]?.total_revenue || 0,
+      revenue_change: revenueChange
     });
   } catch (err) {
-    console.error('Error in GET /api/restaurants/dishes/:dish_id/ratings:', err);
-    res.status(500).json({ error: 'Failed to fetch dish ratings', details: err.message });
+    console.error('Error in GET /api/statistics/analytics/revenue:', err);
+    res.status(500).json({ error: 'Failed to fetch revenue analytics', details: err.message });
   }
 });
 

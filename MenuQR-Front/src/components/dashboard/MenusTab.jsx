@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { menuAPI } from '../../utils/api';
+import { menuAPI, restaurantAPI } from '../../utils/api';
 import MenuCard from '../UI/MenuCard';
 import MyButton from '../UI/Button';
 import Modal from '../UI/Modal';
-import { FaTrash, FaExclamationTriangle } from 'react-icons/fa';
-
+import { FaTrash, FaExclamationTriangle, FaQrcode } from 'react-icons/fa';
+import QRCodeModal from '../QRCodeModal';
 
 
 const MenusTab = () => {
@@ -21,6 +21,7 @@ const MenusTab = () => {
   const [selectedOption, setSelectedOption] = useState('');
   const [menuToDelete, setMenuToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const handleSeeMore = (id) => {
     navigate(`/menus/${id}`);
@@ -30,6 +31,10 @@ const MenusTab = () => {
     const menu = menus.find(m => m.id === id);
     setMenuToDelete(menu);
     setShowDeleteModal(true);
+  };
+
+  const handleGenerateQR = () => {
+    setShowQRModal(true);
   };
 
   const handleConfirmDelete = async () => {
@@ -78,30 +83,44 @@ const MenusTab = () => {
   };
   
   useEffect(() => {
-        const fetchAllMenus = async () => {
-          try { 
-  const allMenusData = await menuAPI.getAll(); 
-  setMenus(allMenusData);
-} catch (error) {
-           console.error('Error fetching all Menus:', error);
+    const fetchAllMenus = async () => {
+      try { 
+        const allMenusData = await menuAPI.getAll(); 
+        setMenus(allMenusData);
+      } catch (error) {
+        console.error('Error fetching all Menus:', error);
+      } 
+    };
 
-} 
-}
+    fetchAllMenus();
+  }, []);
 
 
-fetchAllMenus();
-  }, [])
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex gap-4">
         <MyButton
           className="bg-yellow-400 hover:bg-yellow-500 text-black"
           onClick={() => setShowModal(true)}
         >
           {t('add_menu')}
         </MyButton>
+        <MyButton
+          className="bg-blue-500 hover:bg-blue-600 text-white"
+          onClick={handleGenerateQR}
+        >
+          <FaQrcode className="mr-2" />
+          {t('generate_qr_code')}
+        </MyButton>
       </div>
+
+      {/* QR Code Modal */}
+      <QRCodeModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+        menuName={t('restaurant_menu')}
+      />
 
       <div className="space-y-4">
         {menus.length > 0 ? (

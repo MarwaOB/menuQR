@@ -1,1 +1,0 @@
-curl.exe -X POST http://localhost:3000/api/menu/add -H "Content-Type: application/json" -d "{\"name\":\"Dinner Menu\", \"date\":\"2025-07-03\"}"   

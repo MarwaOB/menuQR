@@ -4,10 +4,12 @@ import { sectionAPI, menuAPI, dishAPI } from '../utils/api';
 import DishCard from '../components/UI/DishCard';
 import DishInput from '../components/UI/DishCardInput';
 import MyButton from '../components/UI/Button';
-import QRCodeModal from '../components/QRCodeModal';
+
 import { v4 as uuidv4 } from 'uuid';
 import { FaPlus, FaCheck } from 'react-icons/fa';
 import { UtensilsCrossed } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 
 const AddNewMenuPage = () => {
   const { t, i18n } = useTranslation();
@@ -18,8 +20,8 @@ const AddNewMenuPage = () => {
   const [showAddDishForm, setShowAddDishForm] = useState(false);
   const [editingDishId, setEditingDishId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [createdMenuData, setCreatedMenuData] = useState(null);
+  const navigate = useNavigate();
+
 
   // Fetch sections on component mount
   useEffect(() => {
@@ -186,19 +188,9 @@ const AddNewMenuPage = () => {
         }
       });
 
-      // Store the created menu data and show QR modal
-      const menuData = {
-        id: menuId,
-        menuName,
-        createdDate,
-        dishes
-      };
-      setCreatedMenuData(menuData);
-      setShowQRModal(true);
-      
-      // Reset form after showing QR
-      setMenuName('');
-      setDishes([]);
+      // Show success message and navigate to menus page
+      toast.success(t('menu_created_successfully'));
+      navigate('/dashboard');
     } catch (err) {
       console.error('Error creating menu:', err);
       alert(`${t('error_creating_menu')}: ${err.message}`);
@@ -322,13 +314,6 @@ const AddNewMenuPage = () => {
         )}
       </div>
 
-      {/* QR Code Modal */}
-      <QRCodeModal
-        isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
-        menuName={createdMenuData?.menuName || ''}
-        menuData={createdMenuData}
-      />
     </>
   );
 };

@@ -37,8 +37,7 @@ export default function ForgotPasswordForm() {
       
       // For development/testing - show the reset token
       if (result.resetToken) {
-        console.log('Reset token (for testing):', result.resetToken);
-        setMessage(result.message + ` (Development mode: Token is ${result.resetToken})`);
+        setMessage(result.message );
       }
     } catch (err) {
       setError(err.message || 'Failed to send reset email. Please try again.');

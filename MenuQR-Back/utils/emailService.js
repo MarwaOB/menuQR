@@ -82,8 +82,9 @@ class EmailService {
   async sendPasswordResetEmail(email, restaurantName, resetToken) {
     await this.ensureInitialized();
     try {
-      // Create reset URL (adjust the domain based on your frontend URL)
-      const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+      // Create reset URL using environment variable or default to local network IP
+      const frontendUrl = process.env.FRONTEND_URL || 'http://192.168.1.105:5173';
+      const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
       
       const mailOptions = {
         from: process.env.EMAIL_FROM || 'MenuQR <noreply@menuqr.com>',

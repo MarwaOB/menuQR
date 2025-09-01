@@ -9,10 +9,12 @@ import AnalyticsTab from './components/dashboard/AnalyticsTab';
 import MenuDetailsPage from './pages/MenuDetailsPage';
 import AddNewMenuPage from './pages/AddNewMenuPage';
 import CreateFromExisting from './pages/CreateFromExisting';
+import CustomerMenuPage from './pages/CustomerMenuPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+
 
 const App = () => {
   return (
@@ -24,6 +26,7 @@ const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
           
           {/* Protected routes */}
           <Route path="/" element={
@@ -40,6 +43,11 @@ const App = () => {
             <Route path="menus/newScratch" element={<AddNewMenuPage />} />
             <Route path="menus/newExisting" element={<CreateFromExisting />} />
           </Route>
+
+          {/* Public customer routes */}
+          <Route path="/menu/current" element={<CustomerMenuPage />} />
+          <Route path="/menu/:id" element={<CustomerMenuPage />} />
+
 
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/" replace />} />

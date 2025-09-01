@@ -1,28 +1,74 @@
-const express = require("express")
-const app = express()
-const cors = require("cors")
-
-app.use(cors());
-require('dotenv').config();
-
-// Apply JSON parsing middleware to all routes except file upload routes
-app.use((req, res, next) => {
-  // Skip JSON parsing only for specific file upload routes
-  if (req.path === '/api/restaurant/logo/upload') {
-    // Skip JSON parsing for file upload routes
-    next();
-  } else {
-    // Apply JSON parsing for all other routes
-    express.json()(req, res, next);
-  }
-});
-
-require('dotenv').config();
-
+const express = require("express");
+const app = express();
+const cors = require("cors");
+const fs = require('fs');
+const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
-const path = require('path');
+
+// Load environment variables
 require('dotenv').config();
+
+// Create logs directory if it doesn't exist
+const logDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// Create a write stream for logging
+const logStream = fs.createWriteStream(path.join(logDir, 'app.log'), { flags: 'a' });
+
+// Logger middleware
+const logger = (req, res, next) => {
+  const logMessage = `[${new Date().toISOString()}] ${req.method} ${req.url} ${JSON.stringify(req.body)}\n`;
+  logStream.write(logMessage);
+  console.log(logMessage.trim());
+  next();
+};
+
+// Enable CORS with more permissive settings for development
+app.use((req, res, next) => {
+  console.log(`Incoming ${req.method} request to ${req.url} from origin ${req.headers.origin}`);
+  
+  // Allow requests from any origin
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('Handling preflight request for', req.url);
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+// Log all requests
+app.use(logger);
+
+// Parse JSON request bodies
+app.use(express.json());
+
+// Parse URL-encoded bodies (for form data)
+app.use(express.urlencoded({ extended: true }));
+
+// Parse JSON bodies
+app.use(express.json());
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  const errorMessage = `[${new Date().toISOString()}] ERROR: ${err.stack}\n`;
+  logStream.write(errorMessage);
+  console.error(errorMessage.trim());
+  
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : {}
+  });
+});
 
 // Cloudinary configuration
 cloudinary.config({
@@ -45,9 +91,9 @@ app.get('/', (req, res) => {
 });
 
 // running the server 
-const host =  'http://localhost';
-app.listen(process.env.PORT, () => {
-  console.log(`server running on ${host}:${process.env.PORT}`);
+const host = '0.0.0.0';
+app.listen(process.env.PORT, host, () => {
+  console.log(`Server is running on http://${host}:${process.env.PORT} (accessible from your network at http://192.168.1.105:${process.env.PORT})`);  
 })
 
 // Route imports

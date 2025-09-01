@@ -65,12 +65,12 @@
   "add_first_dish": "Add your first dish to get started",
   "add_new_dish": "Add New Dish",
   "update_dish": "Update dish",
-  "menu_qr_code_for": "Code QR",
+  "menu_qr_code_for": "QR Code for Menu",
   "qr_code_generated": "QR code has been generated for your menu",
   "scan_to_view_menu": "Scan this QR code to view the menu",
   "download_qr_code": "Download QR Code",
   "qr_code_description": "Share this QR code with customers to access your menu",
-   "confirm_delete_menu": "Delete Menu?",
+  "confirm_delete_menu": "Delete Menu?",
   "delete_menu_warning": "Are you sure you want to delete '{{menuName}}'? This action cannot be undone.",
   "deleting": "Deleting...",
   "no_menus_found": "No menus found",
@@ -86,6 +86,27 @@
   "delete_dish_warning": "Are you sure you want to delete \"{{dishName}}\"? This action cannot be undone.",
  
   
+  "analytics_page": {
+    "select_date_range": "Select Date Range",
+    "total_orders": "Total Orders",
+    "total_revenue": "Total Revenue",
+    "internal_orders": "Internal Orders",
+    "external_orders": "External Orders",
+    "revenue_over_time": "Revenue Over Time",
+    "order_status": "Order Status",
+    "popular_dishes": "Popular Dishes",
+    "dish": "Dish",
+    "section": "Section",
+    "price": "Price",
+    "times_ordered": "Times Ordered",
+    "total_quantity": "Total Quantity",
+    "pending": "Pending",
+    "preparing": "Preparing",
+    "served": "Served",
+    "cancelled": "Cancelled",
+    "revenue": "Revenue",
+    "orders": "Orders"
+  },
   "dish_form": {
     "dish_name": "Dish Name",
     "dish_name_placeholder": "Enter dish name",
@@ -121,6 +142,10 @@
     "close": "Close"
   },
   
+  "generate_qr_code": "Generate QR Code",
+  "restaurant_menu_qr_code": "Restaurant Menu QR Code",
+  "qr_code_instruction": "Scan this QR code to view the current menu",
+  "generating_qr": "Generating QR Code",
   "common": {
     "save": "Save",
     "edit": "Edit",
@@ -143,5 +168,39 @@
     "required_field": "This field is required",
     "section": "Section",
     "menu_name_required": "Menu name is required"
+  },
+  
+  "customer": {
+    "restaurant_menu": "Restaurant Menu",
+    "live_menu": "Live Menu",
+    "cached_menu": "Cached Menu",
+    "cart": "Cart",
+    "your_cart": "Your Cart",
+    "cart_empty": "Your cart is empty",
+    "add_to_cart": "Add to Cart",
+    "total": "Total",
+    "table_number": "Table Number",
+    "place_order": "Place Order",
+    "order_placed_success": "Order placed successfully!",
+    "order_error": "Error placing order",
+    "order_stored_offline": "Order stored offline",
+    "placing_order": "Placing order...",
+    "online": "Online",
+    "offline": "Offline",
+    "how_to_order": "How would you like to order?",
+    "dine_in": "Dine In",
+    "dine_in_desc": "Order to your table",
+    "delivery": "Delivery",
+    "delivery_desc": "Delivered to your address",
+    "takeaway": "Takeaway",
+    "takeaway_desc": "Pick up at restaurant",
+    "delivery_address": "Delivery Address",
+    "delivery_address_placeholder": "Enter your full delivery address",
+    "phone_number": "Phone Number",
+    "phone_number_placeholder": "Enter your phone number",
+    "pickup_time": "Pickup Time",
+    "pickup_time_placeholder": "Select pickup time",
+    "change_order_type": "← Change order type",
+    "enter_table_number": "Enter your table number"
   }
 }
