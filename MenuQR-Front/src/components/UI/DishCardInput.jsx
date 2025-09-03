@@ -4,7 +4,7 @@ import { CATEGORIES } from '../../constants/categories';
 import { FaUpload, FaTrash, FaImage } from 'react-icons/fa';
 
 const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fileInputRef = useRef(null);
   
   const [formData, setFormData] = useState({
@@ -67,14 +67,14 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert(t('invalid_image_type') || 'Please select a valid image file');
+        alert(t('invalid_image_type') || 'Please select a valid image file (JPEG, PNG, etc.)');
         return;
       }
 
-      // Validate file size (e.g., max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      // Validate file size (increased to 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
-        alert(t('image_too_large') || 'Image size must be less than 5MB');
+        alert(t('image_too_large') || 'Image size must be less than 10MB');
         return;
       }
 
@@ -214,9 +214,9 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
   }, []);
 
   return (
-    <div className="bg-gray-50 rounded-xl p-6 border-2 border-dashed border-gray-300">
+    <div className={`bg-gray-50 rounded-xl p-6 border-2 border-dashed border-gray-300 ${i18n.language === 'ar' ? 'text-right' : 'text-left'}`} dir={i18n.language === 'ar' ? 'rtl' : 'ltr'}>
       <h4 className="text-lg font-semibold text-gray-700 mb-4">
-        {initialData ? t('edit_dish') : t('add_new_dish')}
+        {initialData ? t('update_dish') : t('add_dish')}
       </h4>
       
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -224,7 +224,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
           {/* Dish Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('dish_name')} *
+              {t('dish_form.dish_name')} *
             </label>
             <input
               type="text"
@@ -232,7 +232,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
               value={formData.name}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              placeholder={t('enter_dish_name')}
+              placeholder={t('dish_form.dish_name_placeholder')}
               required
             />
           </div>
@@ -240,7 +240,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
           {/* Price */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('price')} *
+              {t('dish_form.price')} *
             </label>
             <input
               type="text"
@@ -248,7 +248,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
               value={formData.price}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              placeholder="1200 DA"
+              placeholder={t('dish_form.price_placeholder')}
               required
             />
           </div>
@@ -257,7 +257,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
         {/* Description */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('description')}
+            {t('dish_form.description')}
           </label>
           <textarea
             name="description"
@@ -265,14 +265,14 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
             onChange={handleInputChange}
             rows="3"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
-            placeholder={t('enter_dish_description')}
+            placeholder={t('dish_form.description_placeholder')}
           />
         </div>
 
         {/* Section Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('section')} *
+            {t('dish_form.section')} *
           </label>
           <select
             name="section_id"
@@ -282,20 +282,25 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
             required
           >
             <option value="" disabled>
-              {t('select_section')}
+              {t('dish_form.select_section')}
             </option>
-            {sections.map((section) => (
-              <option key={section.id} value={section.id}>
-                {section.name}
-              </option>
-            ))}
+            {sections.map((section) => {
+              // Use the section name as the translation key
+              // This assumes section names match the translation keys in the JSON files
+              const translatedName = t(section.name.toLowerCase());
+              return (
+                <option key={section.id} value={section.id}>
+                  {translatedName}
+                </option>
+              );
+            })}
           </select>
         </div>
 
         {/* Image Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('dish_image')} ({t('optional')})
+            {t('dish_form.image')} ({t('optional')})
           </label>
           
           <div className="space-y-3">
@@ -326,12 +331,15 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
                 className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 {formData.imagePreview ? <FaImage /> : <FaUpload />}
-                {formData.imagePreview ? t('change_image') : t('upload_image')}
+                {formData.imagePreview ? t('change_image') : t('dish_form.upload_image')}
               </label>
               
-              <span className="text-sm text-gray-500">
-                {t('max_size_5mb')}
-              </span>
+              <div className="text-sm text-gray-500">
+                <p>{t('dish_form.max_size_10mb')}</p>
+                <p className="text-xs text-gray-400">
+                  {t('dish_form.recommended_size')}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -350,7 +358,7 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
             type="submit"
             className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-white rounded-lg transition-colors font-medium"
           >
-            {initialData ? t('update_dish') : t('add_dish')}
+            {initialData ? t('dish_form.update_dish') : t('dish_form.add_dish')}
           </button>
         </div>
       </form>

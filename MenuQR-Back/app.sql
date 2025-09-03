@@ -1,12 +1,15 @@
 -- ======================
 -- Database Setup
 -- ======================
+CREATE DATABASE IF NOT EXISTS menuqr;
+USE menuqr;
+
 START TRANSACTION;
 
 -- ======================
 -- RESTAURANTS
 -- ======================
-CREATE TABLE Restaurant (
+CREATE TABLE IF NOT EXISTS Restaurant (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
@@ -16,123 +19,124 @@ CREATE TABLE Restaurant (
     description TEXT,
     token VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE RestaurantLogo (
+CREATE TABLE IF NOT EXISTS RestaurantLogo (
     id INT AUTO_INCREMENT PRIMARY KEY,
     restaurant_id INT,
     image_url VARCHAR(255) NOT NULL,
     public_id VARCHAR(255) DEFAULT NULL,
     FOREIGN KEY (restaurant_id) REFERENCES Restaurant(id) ON DELETE CASCADE
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
 -- ======================
 -- MENU & DISHES
 -- ======================
-CREATE TABLE Menu (
+CREATE TABLE IF NOT EXISTS Menu (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    date DATE NOT NULL,
-   -- UNIQUE(date), -- One menu per date per restaurant
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+    date DATE NOT NULL
+    -- You can enforce one menu per restaurant later with unique index
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE Section (
+CREATE TABLE IF NOT EXISTS Section (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE Dish (
+CREATE TABLE IF NOT EXISTS Dish (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    price DECIMAL(10, 2),
+    price DECIMAL(10,2),
     section_id INT,
     menu_id INT,
     FOREIGN KEY (section_id) REFERENCES Section(id),
     FOREIGN KEY (menu_id) REFERENCES Menu(id) ON DELETE CASCADE
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE DishImage (
+CREATE TABLE IF NOT EXISTS DishImage (
     id INT AUTO_INCREMENT PRIMARY KEY,
     dish_id INT,
     image_url VARCHAR(255) NOT NULL,
     local_filename VARCHAR(255) DEFAULT NULL,
     public_id VARCHAR(255) DEFAULT NULL,
     FOREIGN KEY (dish_id) REFERENCES Dish(id) ON DELETE CASCADE
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
 -- ======================
 -- CLIENTS
 -- ======================
-CREATE TABLE InternalClient (
+CREATE TABLE IF NOT EXISTS InternalClient (
     id INT AUTO_INCREMENT PRIMARY KEY,
     table_number INT NOT NULL,
     session_token VARCHAR(255) UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE ExternalClient (
+CREATE TABLE IF NOT EXISTS ExternalClient (
     id INT AUTO_INCREMENT PRIMARY KEY,
     address TEXT NOT NULL,
     phone_number VARCHAR(50),
     session_token VARCHAR(255) UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
 -- ======================
 -- ORDERS
 -- ======================
-CREATE TABLE `Order` (
+CREATE TABLE IF NOT EXISTS `Order` (
     id INT AUTO_INCREMENT PRIMARY KEY,
     menu_id INT,
     internal_client_id INT,
     external_client_id INT,
-    client_type ENUM('internal', 'external') NOT NULL,
-    status ENUM('pending', 'preparing', 'served', 'cancelled') DEFAULT 'pending',
+    client_type ENUM('internal','external') NOT NULL,
+    status ENUM('pending','served','cancelled') DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (menu_id) REFERENCES Menu(id),
     FOREIGN KEY (internal_client_id) REFERENCES InternalClient(id),
     FOREIGN KEY (external_client_id) REFERENCES ExternalClient(id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE OrderItem (
+CREATE TABLE IF NOT EXISTS OrderItem (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT,
     dish_id INT,
     quantity INT DEFAULT 1,
     FOREIGN KEY (order_id) REFERENCES `Order`(id),
     FOREIGN KEY (dish_id) REFERENCES Dish(id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
 
 -- ======================
 -- DEFAULT MENU SECTIONS
 -- ======================
-INSERT INTO Section (name) VALUES 
+INSERT INTO Section (name) VALUES
   ('Drinks'),
   ('Starters'),
   ('Main Course'),
   ('Desserts'),
   ('Sides'),
-  ('Sauces');
+  ('Sauces')
+ON DUPLICATE KEY UPDATE name=name;
 
 COMMIT;

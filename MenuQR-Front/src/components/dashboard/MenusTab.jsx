@@ -12,8 +12,9 @@ import QRCodeModal from '../QRCodeModal';
 
 
 const MenusTab = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const isRTL = i18n.language === 'ar';
 
   const [menus, setMenus] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -98,19 +99,19 @@ const MenusTab = () => {
 
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4">
+    <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-4`}>
         <MyButton
-          className="bg-yellow-400 hover:bg-yellow-500 text-black"
+          className={`bg-yellow-400 hover:bg-yellow-500 text-black flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-2`}
           onClick={() => setShowModal(true)}
         >
           {t('add_menu')}
         </MyButton>
         <MyButton
-          className="bg-blue-500 hover:bg-blue-600 text-white"
+          className={`bg-blue-500 hover:bg-blue-600 text-white flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-2`}
           onClick={handleGenerateQR}
         >
-          <FaQrcode className="mr-2" />
+          <FaQrcode className={isRTL ? 'ml-1' : 'mr-1'} />
           {t('generate_qr_code')}
         </MyButton>
       </div>
@@ -134,7 +135,7 @@ const MenusTab = () => {
             />
           ))
         ) : (
-          <div className="text-center py-12 text-gray-500">
+          <div className={`text-center py-12 text-gray-500 ${isRTL ? 'text-right' : 'text-left'}`}>
             <p className="text-lg mb-2">{t('no_menus_found')}</p>
             <p className="text-sm">{t('create_first_menu')}</p>
           </div>
@@ -143,31 +144,35 @@ const MenusTab = () => {
 
       {/* Add Menu Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
-        <h3 className="text-lg font-bold mb-4 text-gray-700">{t('choose_menu_type')}</h3>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2">
+        <h3 className={`text-lg font-bold mb-4 text-gray-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+          {t('choose_menu_type')}
+        </h3>
+        <div className={`space-y-2 ${isRTL ? 'text-right' : 'text-left'}`}>
+          <label className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-2`}>
             <input
               type="radio"
               name="menuOption"
               value="existing"
               checked={selectedOption === 'existing'}
               onChange={(e) => setSelectedOption(e.target.value)}
+              className={isRTL ? 'ml-2' : 'mr-2'}
             />
             {t('add_from_existing')}
           </label>
-          <label className="flex items-center gap-2">
+          <label className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-2`}>
             <input
               type="radio"
               name="menuOption"
               value="scratch"
               checked={selectedOption === 'scratch'}
               onChange={(e) => setSelectedOption(e.target.value)}
+              className={isRTL ? 'ml-2' : 'mr-2'}
             />
             {t('add_from_scratch')}
           </label>
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} justify-end gap-3 mt-6`}>
           <MyButton
             className="bg-gray-200 hover:bg-gray-300 text-gray-700"
             onClick={() => {
@@ -189,8 +194,8 @@ const MenusTab = () => {
 
       {/* Delete Confirmation Modal */}
       <Modal isOpen={showDeleteModal} onClose={handleCancelDelete}>
-        <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+        <div className={isRTL ? 'text-right' : 'text-left'} dir={isRTL ? 'rtl' : 'ltr'}>
+          <div className={`flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4 ${isRTL ? 'ml-auto' : 'mr-auto'}`}>
             <FaExclamationTriangle className="h-8 w-8 text-red-600" />
           </div>
           
@@ -204,7 +209,7 @@ const MenusTab = () => {
             })}
           </p>
 
-          <div className="flex justify-center gap-3">
+          <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} justify-end gap-3`}>
             <MyButton
               className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6"
               onClick={handleCancelDelete}

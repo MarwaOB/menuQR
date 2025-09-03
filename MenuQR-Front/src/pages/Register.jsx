@@ -90,7 +90,7 @@ export default function RegisterForm() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone || null,
+        phone_number: formData.phone || null,  // Changed from phone to phone_number
         address: formData.address || null
       });
       

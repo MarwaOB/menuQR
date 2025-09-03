@@ -209,6 +209,11 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     return cart.reduce((total, item) => total + item.quantity, 0);
   };
 
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem('customerCart');
+  };
+
   // Order placement based on server type
   const handlePlaceOrder = async () => {
     // Validation
@@ -337,6 +342,8 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       const orderResult = await orderResponse.json();
       console.log('Order created successfully:', orderResult);
       
+      // Clear the cart after successful order
+      clearCart();
       setOrderStatus('success');
       return orderResult;
       

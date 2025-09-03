@@ -44,7 +44,8 @@ ChartJS.register(
 );
 
 const AnalyticsTab = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)),
@@ -106,7 +107,7 @@ const AnalyticsTab = () => {
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
-      setError('Failed to load analytics data. Please try again later.');
+      setError(t('analytics_page.error_fetching_analytics'));
     } finally {
       setLoading(false);
     }
@@ -152,18 +153,16 @@ const AnalyticsTab = () => {
   };
 
   const orderStatusData = {
-    labels: [t('pending'), t('preparing'), t('served'), t('cancelled')],
+    labels: [t('analytics_page.pending'), t('analytics_page.served'), t('analytics_page.cancelled')],
     datasets: [
       {
         data: [
           orderStats?.pending_orders || 0,
-          orderStats?.preparing_orders || 0,
           orderStats?.served_orders || 0,
           orderStats?.cancelled_orders || 0
         ],
         backgroundColor: [
           'rgba(245, 158, 11, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
           'rgba(239, 68, 68, 0.8)'
         ],
@@ -208,7 +207,7 @@ const AnalyticsTab = () => {
       {/* Date Range Picker */}
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h2 className="text-lg font-semibold">{t('select_date_range')}</h2>
+          <h2 className="text-lg font-semibold">{t('analytics_page.select_date_range')}</h2>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex items-center gap-2">
               <FaCalendarAlt className="text-gray-500" />
@@ -241,28 +240,28 @@ const AnalyticsTab = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           icon={<FaUtensils className="text-blue-500" />} 
-          title={t('total_orders')}
+          title={t('analytics_page.total_orders')}
           value={orderStats?.total_orders || 0}
           change={orderStats?.changes?.total_orders || 0}
           trend={orderStats?.changes?.total_orders >= 0 ? "up" : "down"}
         />
         <StatCard 
           icon={<FaMoneyBillWave className="text-green-500" />} 
-          title={t('total_revenue')}
+          title={t('analytics_page.total_revenue')}
           value={`${Number(revenueData.total_revenue || 0).toFixed(2)} DZD`}
           change={Number(revenueData.revenue_change || 0)}
           trend={Number(revenueData.revenue_change || 0) >= 0 ? "up" : "down"}
         />
         <StatCard 
           icon={<FaUsers className="text-purple-500" />} 
-          title={t('internal_orders')}
+          title={t('analytics_page.internal_orders')}
           value={orderStats?.internal_orders || 0}
           change={orderStats?.changes?.internal_orders || 0}
           trend={orderStats?.changes?.internal_orders >= 0 ? "up" : "down"}
         />
         <StatCard 
           icon={<FaChartLine className="text-yellow-500" />} 
-          title={t('external_orders')}
+          title={t('analytics_page.external_orders')}
           value={orderStats?.external_orders || 0}
           change={orderStats?.changes?.external_orders || 0}
           trend={orderStats?.changes?.external_orders >= 0 ? "up" : "down"}
@@ -273,7 +272,7 @@ const AnalyticsTab = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}
         <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="font-semibold mb-4">{t('revenue_over_time')}</h3>
+          <h3 className="font-semibold mb-4">{t('analytics_page.revenue_over_time')}</h3>
           <div className="h-64">
             <Line data={revenueChartData} options={chartOptions} />
           </div>
@@ -281,7 +280,7 @@ const AnalyticsTab = () => {
 
         {/* Order Status Chart */}
         <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="font-semibold mb-4">{t('order_status')}</h3>
+          <h3 className="font-semibold mb-4">{t('analytics_page.order_status')}</h3>
           <div className="h-64 flex items-center justify-center">
             <Doughnut 
               data={orderStatusData} 
@@ -300,45 +299,52 @@ const AnalyticsTab = () => {
 
       {/* Popular Dishes */}
       <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="font-semibold mb-4">{t('popular_dishes')}</h3>
+        <h3 className="font-semibold mb-4">{t('analytics_page.popular_dishes')}</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className={`min-w-full divide-y divide-gray-200 ${isRTL ? 'rtl' : ''}`} dir={isRTL ? 'rtl' : 'ltr'}>
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('dish')}
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.dish')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('section')}
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.menu')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('price')}
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.section')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('times_ordered')}
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.price')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('total_quantity')}
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.times_ordered')}
+                </th>
+                <th className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('analytics_page.total_quantity')}
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {popularDishes.map((dish) => (
                 <tr key={dish.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="text-sm font-medium text-gray-900">{dish.name}</div>
-                    <div className="text-sm text-gray-500">{dish.description}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{dish.section_name}</div>
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <div className="text-sm text-gray-900">{dish.menu_name || t('analytics_page.not_available')}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <div className="text-sm text-gray-900">
+                      {dish.section_name ? t(dish.section_name.toLowerCase()) : t('analytics_page.not_available')}
+                    </div>
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="text-sm text-gray-900">{dish.price} DZD</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="text-sm text-gray-900">{dish.times_ordered}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`px-6 py-4 whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>
                     <div className="text-sm text-gray-900">{dish.total_ordered}</div>
                   </td>
                 </tr>
@@ -352,15 +358,17 @@ const AnalyticsTab = () => {
 };
 
 const StatCard = ({ icon, title, value, change, trend }) => {
-  const formatChange = (change) => {
-    if (change === 0) return '0';
-    return Math.abs(change).toFixed(1);
-  };
-
+  const { t } = useTranslation();
   const getChangeColor = (trend) => {
     if (trend === 'up') return 'text-green-500';
     if (trend === 'down') return 'text-red-500';
     return 'text-gray-500';
+  };
+  
+  // Format change percentage
+  const formatChange = (change) => {
+    if (change === 0) return t('analytics_page.no_change');
+    return `${Math.abs(change).toFixed(1)}%`;
   };
 
   return (
@@ -375,8 +383,14 @@ const StatCard = ({ icon, title, value, change, trend }) => {
           <div className={`text-sm ${getChangeColor(trend)} flex items-center justify-end`}>
             {trend === 'up' && change > 0 && <FaArrowUp className="mr-1" />}
             {trend === 'down' && change < 0 && <FaArrowDown className="mr-1" />}
-            {change !== 0 && `${formatChange(change)}%`}
-            {change === 0 && <span className="text-gray-500">No change</span>}
+            {change !== 0 && (
+              <>
+                {trend === 'up' && <FaArrowUp className="mr-1" />}
+                {trend === 'down' && <FaArrowDown className="mr-1" />}
+                {formatChange(change)}
+              </>
+            )}
+            {change === 0 && <span className="text-gray-500">{t('analytics_page.no_change')}</span>}
           </div>
         </div>
       </div>

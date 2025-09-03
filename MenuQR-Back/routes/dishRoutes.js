@@ -33,28 +33,28 @@ router.get('/search', async (req, res) => {
     const params = [];
 
     if (query) {
-      sql += ' AND (d.name LIKE ? OR d.description LIKE ?)';
+      sql += ' AND (d.name ILIKE $' + (params.length + 1) + ' OR d.description ILIKE $' + (params.length + 2) + ')';
       params.push(`%${query}%`, `%${query}%`);
     }
 
     if (section_id) {
-      sql += ' AND d.section_id = ?';
+      sql += ' AND d.section_id = $' + (params.length + 1);
       params.push(section_id);
     }
 
     if (min_price) {
-      sql += ' AND d.price >= ?';
+      sql += ' AND d.price >= $' + (params.length + 1);
       params.push(min_price);
     }
 
     if (max_price) {
-      sql += ' AND d.price <= ?';
+      sql += ' AND d.price <= $' + (params.length + 1);
       params.push(max_price);
     }
 
     sql += ' ORDER BY d.name';
 
-    const [rows] = await db.query(sql, params);
+    const { rows } = await db.query(sql, params);
     
     res.status(200).json(rows);
   } catch (err) {
@@ -79,12 +79,12 @@ router.post('/add', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)';
+    const sql = 'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5) RETURNING id';
     const result = await db.query(sql, [name, description, price, section_id, menu_id]);
     
     res.status(201).json({ 
       message: 'Dish created successfully', 
-      dish_id: result[0].insertId 
+      dish_id: result.rows[0].id 
     });
   } catch (err) {
     console.error('Error in POST /api/dish/add:', err);
@@ -221,9 +221,9 @@ router.post('/image/upload', authenticateToken, (req, res, next) => {
   }
 
   try {
-    // Vérifier d'abord si le dish_id existe
-    const [dish] = await db.query('SELECT id FROM Dish WHERE id = ?', [dish_id]);
-    if (dish.length === 0) {
+    // Check if dish exists first
+    const dishResult = await db.query('SELECT id FROM Dish WHERE id = $1', [dish_id]);
+    if (dishResult.rows.length === 0) {
       return res.status(404).json({ error: 'Dish not found' });
     }
 
@@ -246,9 +246,18 @@ router.post('/image/upload', authenticateToken, (req, res, next) => {
 
     const cloudinaryResult = await uploadToCloudinary();
 
-    // Enregistrement dans la base
-    const sql = 'INSERT INTO DishImage (dish_id, image_url, public_id, local_filename) VALUES (?, ?, ?, ?)';
-    await db.query(sql, [dish_id, cloudinaryResult.secure_url, cloudinaryResult.public_id, localPath]);
+    // Save to database
+    const sql = 'INSERT INTO DishImage (dish_id, image_url, public_id, local_filename) VALUES ($1, $2, $3, $4) RETURNING id';
+    const result = await db.query(sql, [
+      dish_id,
+      cloudinaryResult.secure_url,
+      cloudinaryResult.public_id,
+      localFileName
+    ]);
+    
+    if (result.rows.length === 0) {
+      throw new Error('Failed to save dish image - no ID returned');
+    }
 
     res.status(201).json({
       message: 'Dish image uploaded successfully',
@@ -269,8 +278,8 @@ router.get('/:dish_id/images', async (req, res) => {
   const { dish_id } = req.params;
   
   try {
-    const sql = 'SELECT image_url FROM DishImage WHERE dish_id = ?';
-    const [rows] = await db.query(sql, [dish_id]);
+    const sql = 'SELECT image_url FROM DishImage WHERE dish_id = $1';
+    const { rows } = await db.query(sql, [dish_id]);
     
     res.status(200).json(rows);
   } catch (err) {

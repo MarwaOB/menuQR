@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { orderAPI } from '../../utils/api';
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import { FaSearch, FaFilter, FaSort, FaCheck, FaTimes, FaSpinner, FaPrint } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaSort, FaCheck, FaTimes, FaSpinner, FaPrint, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
-  preparing: 'bg-purple-100 text-purple-800',
   served: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
   // Map old statuses to new ones for backward compatibility
-  confirmed: 'bg-purple-100 text-purple-800', // Map to preparing
   ready: 'bg-green-100 text-green-800',       // Map to served
-  completed: 'bg-gray-100 text-gray-800',     // Map to served
+  completed: 'bg-green-100 text-green-800',   // Map to served
 };
 
 export default function OrdersTab() {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +32,88 @@ export default function OrdersTab() {
   }, []);
 
   // Helper function to normalize order data
+  const getStatusBadge = (status) => {
+    const statusText = status === 'pending' ? t('orders_page.status_pending') :
+                     status === 'served' ? t('orders_page.status_served') :
+                     status === 'cancelled' ? t('orders_page.status_cancelled') : status;
+    
+    const statusColors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      served: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    
+    return (
+      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status === 'pending' && '⏳'}
+        {status === 'served' && '✅'}
+        {status === 'cancelled' && '❌'}
+        <span className={isRTL ? 'mr-1' : 'ml-1'}>{statusText}</span>
+      </span>
+    );
+  };
+
+  const renderTableHeaders = () => {
+    const headers = [
+      {
+        key: 'order_number',
+        content: (
+          <div className={`flex items-center ${isRTL ? 'flex-row-reverse' : ''}`}>
+            {t('orders_page.order_number')}
+            <FaSort className={isRTL ? 'mr-1' : 'ml-1'} />
+          </div>
+        ),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer`,
+        onClick: () => requestSort('order_number')
+      },
+      {
+        key: 'items',
+        content: t('orders_page.items'),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider`
+      },
+      {
+        key: 'customer',
+        content: t('orders_page.customer'),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider`
+      },
+      {
+        key: 'total',
+        content: (
+          <div className={`flex items-center ${isRTL ? 'flex-row-reverse' : ''}`}>
+            {t('orders_page.total')}
+            <FaSort className={isRTL ? 'mr-1' : 'ml-1'} />
+          </div>
+        ),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer`,
+        onClick: () => requestSort('total_amount')
+      },
+      {
+        key: 'time',
+        content: (
+          <div className={`flex items-center ${isRTL ? 'flex-row-reverse' : ''}`}>
+            {t('orders_page.time')}
+            <FaSort className={isRTL ? 'mr-1' : 'ml-1'} />
+          </div>
+        ),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer`,
+        onClick: () => requestSort('createdAt')
+      },
+      {
+        key: 'status',
+        content: t('orders_page.status'),
+        className: `px-6 py-3 text-${isRTL ? 'right' : 'left'} text-xs font-medium text-gray-500 uppercase tracking-wider`
+      },
+      {
+        key: 'actions',
+        content: t('orders_page.actions'),
+        className: `px-6 py-3 text-${isRTL ? 'left' : 'right'} text-xs font-medium text-gray-500 uppercase tracking-wider`
+      }
+    ];
+
+    // Reverse the order for RTL
+    return isRTL ? [...headers].reverse() : headers;
+  };
+
   const normalizeOrder = (order) => {
     if (!order) return null;
     
@@ -42,14 +125,14 @@ export default function OrdersTab() {
     if (Array.isArray(order.items)) {
       orderItems = order.items.map(item => ({
         ...item,
-        name: item.name || item.dish_name || 'Unnamed Item',
+        name: item.name || item.dish_name || t('orders_page.unnamed_item'),
         price: Number(item.price || item.unit_price || 0),
         quantity: Number(item.quantity || 1)
       }));
     } else if (Array.isArray(order.order_items)) {
       orderItems = order.order_items.map(item => ({
         ...item,
-        name: item.name || item.dish_name || 'Unnamed Item',
+        name: item.name || item.dish_name || t('orders_page.unnamed_item'),
         price: Number(item.price || item.unit_price || 0),
         quantity: Number(item.quantity || 1)
       }));
@@ -68,7 +151,7 @@ export default function OrdersTab() {
     // Get customer info
     const customerName = order.customer_name || 
                         (order.customer ? (order.customer.name || order.customer.email) : null) || 
-                        (order.table_number ? `Table ${order.table_number}` : 'Guest');
+                        (order.table_number ? t('orders_page.table') + ` ${order.table_number}` : t('orders_page.guest'));
     
     // Normalize status
     const status = (order.status || 'pending').toLowerCase();
@@ -167,14 +250,14 @@ export default function OrdersTab() {
         ----------------------------
         ITEMS:
         ${order.items.map(item => `
-        ${item.quantity}x ${item.name || item.dish_name || 'Item'}
+        ${item.quantity}x ${item.name || item.dish_name || t('orders_page.unnamed_item')}
           ${formatCurrency((Number(item.price || item.unit_price || 0) * (Number(item.quantity) || 1)))}
           ${item.notes ? `  Note: ${item.notes}` : ''}
         `).join('')}
         ----------------------------
         TOTAL: ${formatCurrency(order.total_amount || 0)}
         ============================
-        Thank you for your order!
+        ${t('orders_page.thank_you_for_your_order')}
       `;
 
       // Create a Blob with the receipt content
@@ -193,12 +276,12 @@ export default function OrdersTab() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error generating receipt:', error);
-      alert('Failed to generate receipt. Please try again.');
+      alert(t('orders_page.error_generating_receipt'));
     }
   };
 
   const handleDeleteOrder = async (orderId) => {
-    if (!orderId || !window.confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+    if (!orderId || !window.confirm(t('orders_page.confirm_delete_order'))) {
       return;
     }
     
@@ -219,12 +302,12 @@ export default function OrdersTab() {
         setIsModalOpen(false);
       }
       
-      alert('Order deleted successfully');
+      alert(t('orders_page.order_deleted_success'));
     } catch (error) {
       console.error('Error deleting order:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
+      const errorMessage = error.response?.data?.error || error.message || t('orders_page.unknown_error');
       console.error('Error details:', errorMessage);
-      alert(`Failed to delete order: ${errorMessage}`);
+      alert(`${t('orders_page.error_deleting_order')}: ${errorMessage}`);
     }
   };
 
@@ -256,10 +339,10 @@ export default function OrdersTab() {
       }
       
       // Show success message
-      alert(`Order status updated to ${newStatus}`);
+      alert(`${t('orders_page.status_updated_to')} ${t(`orders_page.status_${newStatus}`)}`);
     } catch (error) {
       console.error('Error updating order status:', error);
-      alert('Failed to update order status. Please try again.');
+      alert(t('orders_page.error_updating_status'));
     }
   };
 
@@ -324,23 +407,23 @@ export default function OrdersTab() {
 
   const formatDistanceToNow = (dateString) => {
     try {
-      if (!dateString) return 'Just now';
+      if (!dateString) return t('orders_page.just_now');
       
       // Handle both ISO strings and timestamps
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Just now';
+      if (isNaN(date.getTime())) return t('orders_page.just_now');
       
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
       
-      if (diffInSeconds < 60) return 'Just now';
+      if (diffInSeconds < 60) return t('orders_page.just_now');
       if (diffInSeconds < 3600) {
         const minutes = Math.floor(diffInSeconds / 60);
-        return `${minutes}m ago`;
+        return `${minutes}m ${t('orders_page.ago')}`;
       }
       if (diffInSeconds < 86400) {
         const hours = Math.floor(diffInSeconds / 3600);
-        return `${hours}h ago`;
+        return `${hours}h ${t('orders_page.ago')}`;
       }
       
       // For older dates, show the date
@@ -353,53 +436,12 @@ export default function OrdersTab() {
       });
     } catch (error) {
       console.error('Error formatting date:', error);
-      return 'Just now';
+      return t('orders_page.just_now');
     }
   };
 
-  const getStatusBadge = (status) => {
-    if (!status) status = 'pending';
-    
-    // Map old statuses to new ones
-    const statusMapping = {
-      confirmed: 'preparing',
-      ready: 'served',
-      completed: 'served',
-    };
-    
-    // Normalize status to one of the expected values
-    const normalizedStatus = statusMapping[status] || status;
-    
-    const statusIcons = {
-      pending: '⏳',
-      preparing: '👨‍🍳',
-      served: '✅',
-      cancelled: '❌',
-    };
-    
-    const statusLabels = {
-      pending: 'Pending',
-      preparing: 'Preparing',
-      served: 'Served',
-      cancelled: 'Cancelled',
-    };
-    
-    const icon = statusIcons[normalizedStatus] || '📋';
-    const label = statusLabels[normalizedStatus] || normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
-    
-    return (
-      <span
-        className={`px-2 py-1 inline-flex items-center text-xs font-semibold rounded-full ${statusColors[normalizedStatus] || 'bg-gray-100'}`}
-        title={label}
-      >
-        <span className="mr-1">{icon}</span>
-        {label}
-      </span>
-    );
-  };
-
   const renderOrderDetails = (order) => {
-    if (!order) return <div>Error: Order not found</div>;
+    if (!order) return <div>{t('orders_page.error_order_not_found')}</div>;
     
     // Safely get order ID
     const orderId = order.id || '';
@@ -416,15 +458,17 @@ export default function OrdersTab() {
     
     return (
       <div className="space-y-3 p-2">
-        <div className="flex justify-between items-center border-b pb-2">
-          <h3 className="text-lg font-semibold">Order {orderNumber}</h3>
+        <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} justify-between items-center border-b pb-2`}>
+          <h3 className="text-lg font-medium text-gray-900">
+            {isRTL ? `${orderNumber} ${t('orders_page.order')}` : `${t('orders_page.order')} ${orderNumber}`}
+          </h3>
           <div className="flex space-x-2">
             {order.status !== 'served' && order.status !== 'cancelled' && (
               <button
                 onClick={() => handleStatusUpdate(orderId, 'served')}
                 className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
               >
-                Mark Complete
+                {t('orders_page.mark_complete')}
               </button>
             )}
             {order.status === 'pending' && (
@@ -432,65 +476,73 @@ export default function OrdersTab() {
                 onClick={() => handleStatusUpdate(orderId, 'cancelled')}
                 className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
               >
-                Cancel
+                {t('orders_page.cancel')}
               </button>
             )}
           </div>
         </div>
         
         <div className="space-y-2">
-          <h4 className="font-medium text-gray-700">Items:</h4>
+          <h4 className="font-medium text-gray-700">{t('orders_page.items')}:</h4>
           {Array.isArray(order.items) && order.items.length > 0 ? (
             <div className="space-y-1">
               {order.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between py-2 border-b border-gray-100">
+                <div key={idx} className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} justify-between py-2 border-b border-gray-100`}>
                   <div className="flex-1">
                     <div className="font-medium">
-                      {item.quantity}x {item.name}
+                      {isRTL ? 
+                        `${item.name || item.dish_name || t('orders_page.unnamed_item')} ×${item.quantity}` :
+                        `${item.quantity}× ${item.name || item.dish_name || t('orders_page.unnamed_item')}`}
                     </div>
                     {item.notes && (
-                      <div className="text-xs text-gray-500 pl-2 mt-1">
-                        <span className="font-medium">Note:</span> {item.notes}
+                      <div className={`text-xs text-gray-500 ${isRTL ? 'pr-2' : 'pl-2'} mt-1`}>
+                        <span className="font-medium">{t('orders_page.note')}:</span> {item.notes}
                       </div>
                     )}
                   </div>
-                  <div className="ml-4 font-medium">
-                    {formatCurrency(item.price * item.quantity)}
+                  <div className={`${isRTL ? 'mr-4' : 'ml-4'} font-medium`}>
+                    {formatCurrency((item.price || item.unit_price || 0) * (item.quantity || 1))}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-gray-500 italic">No items in this order</div>
+            <div className="text-gray-500 italic">{t('orders_page.no_items')}</div>
           )}
         </div>
         
         <div className="pt-2 border-t">
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total:</span>
+          <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} justify-between font-semibold text-lg`}>
+            <span>{t('orders_page.total')}:</span>
             <span>{formatCurrency(displayTotal)}</span>
           </div>
         </div>
         
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="font-medium text-gray-700">Status:</div>
-            <div className="capitalize">{order.status || 'pending'}</div>
+          <div className={isRTL ? 'text-right' : 'text-left'}>
+            <div className="font-medium text-gray-700">{t('orders_page.status')}:</div>
+            <div className="capitalize">{t(`orders_page.status_${order.status || 'pending'}`)}</div>
           </div>
           
-          <div>
-            <div className="font-medium text-gray-700">Date:</div>
-            <div>{formatDistanceToNow(order.created_at)}</div>
+          <div className={isRTL ? 'text-right' : 'text-left'}>
+            <div className="font-medium text-gray-700">{t('orders_page.date')}:</div>
+            <div>{formatDistanceToNow(new Date(order.created_at))}</div>
           </div>
           
           {(order.table_number || order.address) && (
-            <div className="col-span-2">
+            <div className={`col-span-2 ${isRTL ? 'text-right' : 'text-left'}`}>
               <div className="font-medium text-gray-700">
-                {order.table_number ? 'Table' : order.is_external ? 'Customer Address' : 'Delivery Address'}:
+                {order.table_number 
+                  ? t('orders_page.table') 
+                  : order.is_external 
+                    ? t('orders_page.customer_address') 
+                    : t('orders_page.delivery_address')}:
               </div>
               <div>{order.table_number || order.address}</div>
               {order.phone_number && (
-                <div className="text-sm text-gray-600">Phone: {order.phone_number}</div>
+                <div className="text-sm text-gray-600">
+                  {t('orders_page.phone')}: {order.phone_number}
+                </div>
               )}
             </div>
           )}
@@ -498,7 +550,9 @@ export default function OrdersTab() {
         
         {(order.notes || order.special_instructions) && (
           <div className="text-sm">
-            <div className="font-medium text-gray-700">Order Notes:</div>
+            <div className="font-medium text-gray-700">
+              {t('orders_page.order_notes')}:
+            </div>
             <div className="mt-1 p-2 bg-gray-50 rounded whitespace-pre-wrap">
               {order.notes || order.special_instructions}
             </div>
@@ -509,36 +563,36 @@ export default function OrdersTab() {
   };
 
   return (
-    <div className="p-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Orders</h2>
+    <div className={`p-4 ${isRTL ? 'rtl' : 'ltr'}`}>
+      <div className={`flex flex-col md:flex-row justify-between items-start mb-6 gap-4 ${isRTL ? 'md:flex-row-reverse' : ''}`}>
+        <h2 className="text-2xl font-bold text-gray-800">{t('orders_page.orders')}</h2>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-3' : 'left-0 pl-3'} flex items-center pointer-events-none`}>
               <FaSearch className="text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search orders..."
-              className="pl-10 pr-4 py-2 border rounded-lg w-full"
+              placeholder={t('orders_page.search_placeholder')}
+              className={`${isRTL ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-2 border rounded-lg w-full`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <div className="relative">
             <select
-              className="appearance-none bg-white border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`appearance-none bg-white border rounded-lg ${isRTL ? 'pr-3 pl-8' : 'pl-3 pr-8'} py-2 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="all">All Status</option>
+              <option value="all">{t('orders_page.all_status')}</option>
               {['pending', 'served', 'cancelled'].map((status) => (
                 <option key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {t(`orders_page.status_${status}`)}
                 </option>
               ))}
             </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+            <div className={`absolute inset-y-0 ${isRTL ? 'left-0 pl-2' : 'right-0 pr-2'} flex items-center pointer-events-none`}>
               <FaFilter className="text-gray-400" />
             </div>
           </div>
@@ -555,131 +609,128 @@ export default function OrdersTab() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('order_number')}
-                  >
-                    <div className="flex items-center">
-                      Order #
-                      <FaSort className="ml-1" />
-                    </div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Items
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('total_amount')}
-                  >
-                    <div className="flex items-center">
-                      Total
-                      <FaSort className="ml-1" />
-                    </div>
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('createdAt')}
-                  >
-                    <div className="flex items-center">
-                      Time
-                      <FaSort className="ml-1" />
-                    </div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {renderTableHeaders().map((header) => (
+                    <th
+                      key={header.key}
+                      className={header.className}
+                      onClick={header.onClick}
+                    >
+                      {header.content}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedOrders.length > 0 ? (
                   sortedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order.order_number || `#${String(order.id || '').substring(0, 8)}`}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {order.items?.length > 0 ? (
-                          <>
-                            {order.items.slice(0, 2).map((item, idx) => (
-                              <div key={idx}>
-                                {item.quantity}x {item.name || item.dish_name || 'Item'}
-                              </div>
-                            ))}
-                            {order.items.length > 2 && (
-                              <div 
-                                className="text-blue-500 cursor-pointer hover:underline" 
-                                onClick={() => {
-                                  setSelectedOrder(order);
-                                  setIsModalOpen(true);
-                                }}
-                              >
-                                +{order.items.length - 2} more
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-gray-400">No items</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.external_client_id ? (
-                          <span className="inline-flex items-center">
-                            <span className="text-orange-500 mr-1">🚚</span>
-                            <span>Delivery</span>
-                          </span>
-                        ) : order.table_number ? (
-                          <span className="inline-flex items-center">
-                            <span className="text-blue-500 mr-1">🪑</span>
-                            <span>Table {order.table_number}</span>
-                          </span>
-                        ) : order.customer_name ? (
-                          <span>{order.customer_name}</span>
-                        ) : (
-                          <span className="text-gray-400">Guest</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatCurrency(order.total_amount)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" title={new Date(order.created_at).toLocaleString()}>
-                        {formatDistanceToNow(parseISO(order.created_at), { addSuffix: true })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(order.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setIsModalOpen(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="View order details"
-                          >
-                            View
-                          </button>
-                          <button 
-                            onClick={() => handleDownloadReceipt(order)}
-                            className="text-gray-500 hover:text-gray-700"
-                            title="Print receipt"
-                          >
-                            <FaPrint />
-                          </button>
-                        </div>
-                      </td>
+                      {renderTableHeaders().map((header) => {
+                        switch (header.key) {
+                          case 'order_number':
+                            return (
+                              <td key="order_number" className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {order.order_number || `#${String(order.id || '').substring(0, 8)}`}
+                              </td>
+                            );
+                          case 'items':
+                            return (
+                              <td key="items" className="px-6 py-4 text-sm text-gray-500">
+                                {order.items?.length > 0 ? (
+                                  <>
+                                    {order.items.slice(0, 2).map((item, idx) => (
+                                      <div key={idx} className={isRTL ? 'text-right' : 'text-left'}>
+                                        {item.quantity}x {item.name || item.dish_name || t('orders_page.unnamed_item')}
+                                      </div>
+                                    ))}
+                                    {order.items.length > 2 && (
+                                      <div 
+                                        className="text-blue-500 cursor-pointer hover:underline" 
+                                        onClick={() => {
+                                          setSelectedOrder(order);
+                                          setIsModalOpen(true);
+                                        }}
+                                      >
+                                        +{order.items.length - 2} {t('common.more')}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-gray-400">{t('orders_page.no_items')}</span>
+                                )}
+                              </td>
+                            );
+                          case 'customer':
+                            return (
+                              <td key="customer" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {order.external_client_id ? (
+                                  <span className="inline-flex items-center">
+                                    <span className={isRTL ? 'ml-1' : 'mr-1'}>🚚</span>
+                                    <span>{t('orders_page.delivery')}</span>
+                                  </span>
+                                ) : order.table_number ? (
+                                  <span className="inline-flex items-center">
+                                    <span className={isRTL ? 'ml-1' : 'mr-1'}>🪑</span>
+                                    <span>{t('orders_page.table')} {order.table_number}</span>
+                                  </span>
+                                ) : order.customer_name ? (
+                                  <span>{order.customer_name}</span>
+                                ) : (
+                                  <span className="text-gray-400">{t('orders_page.guest')}</span>
+                                )}
+                              </td>
+                            );
+                          case 'total':
+                            return (
+                              <td key="total" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {formatCurrency(order.total_amount)}
+                              </td>
+                            );
+                          case 'time':
+                            return (
+                              <td key="time" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" title={new Date(order.created_at).toLocaleString()}>
+                                {formatDistanceToNow(parseISO(order.created_at), { addSuffix: true })}
+                              </td>
+                            );
+                          case 'status':
+                            return (
+                              <td key="status" className="px-6 py-4 whitespace-nowrap">
+                                {getStatusBadge(order.status)}
+                              </td>
+                            );
+                          case 'actions':
+                            return (
+                              <td key="actions" className={`px-6 py-4 whitespace-nowrap text-${isRTL ? 'left' : 'right'} text-sm font-medium`}>
+                                <div className={`flex items-center ${isRTL ? 'space-x-reverse' : ''} space-x-2`}>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedOrder(order);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-900"
+                                    title={t('orders_page.view_order_details')}
+                                  >
+                                    {t('orders_page.view')}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDownloadReceipt(order)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                    title={t('orders_page.print_receipt')}
+                                  >
+                                    <FaPrint />
+                                  </button>
+                                </div>
+                              </td>
+                            );
+                          default:
+                            return null;
+                        }
+                      })}
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
-                      No orders found
+                      {t('orders_page.no_orders_found')}
                     </td>
                   </tr>
                 )}
@@ -692,10 +743,10 @@ export default function OrdersTab() {
       {/* Order Details Modal */}
       {isModalOpen && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className={`bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${isRTL ? 'rtl' : 'ltr'}`}>
             <div className="p-6">
               <div className="flex justify-between items-start">
-                <h3 className="text-lg font-medium text-gray-900">Order Details</h3>
+                <h3 className="text-lg font-medium text-gray-900">{t('orders_page.order_details')}</h3>
                 <button
                   onClick={() => setIsModalOpen(false)}
                   className="text-gray-400 hover:text-gray-500"
@@ -706,28 +757,28 @@ export default function OrdersTab() {
               <div className="mt-4">
                 {renderOrderDetails(selectedOrder)}
               </div>
-              <div className="mt-6 flex justify-between">
-                <div>
+              <div className="mt-6 flex flex-col sm:flex-row justify-between gap-3">
+                <div className="order-2 sm:order-1">
                   <button 
                     onClick={() => handleDeleteOrder(selectedOrder.id)}
-                    className="px-4 py-2 border border-red-500 rounded-md text-sm font-medium text-red-600 hover:bg-red-50"
+                    className="w-full sm:w-auto px-4 py-2 border border-red-500 rounded-md text-sm font-medium text-red-600 hover:bg-red-50"
                   >
-                    Delete Order
+                    {t('orders_page.delete_order')}
                   </button>
                 </div>
-                <div className="space-x-3">
+                <div className={`flex ${isRTL ? 'sm:flex-row-reverse' : 'sm:flex-row'} flex-col sm:flex-row gap-3 order-1 sm:order-2`}>
                   <button
                     onClick={() => setIsModalOpen(false)}
                     className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
-                    Close
+                    {t('orders_page.cancel')}
                   </button>
                   <button 
                     onClick={() => handleDownloadReceipt(selectedOrder)}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center ${isRTL ? 'flex-row-reverse' : ''}`}
                   >
-                    <FaPrint className="inline mr-2" />
-                    Download Receipt
+                    <FaPrint className={isRTL ? 'ml-2' : 'mr-2'} />
+                    {t('orders_page.print_receipt')}
                   </button>
                 </div>
               </div>

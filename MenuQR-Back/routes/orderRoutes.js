@@ -22,101 +22,75 @@ if (!fs.existsSync(uploadsDir)) {
 // ======================
 
 // Add internal client (table)
-router.post('/clients/internal/add', (req, res) => {
+// Add internal client (table)
+router.post('/clients/internal/add', async (req, res) => {
   console.log('=== START: /api/order/clients/internal/add ===');
   console.log('1. Request received at:', new Date().toISOString());
   console.log('2. Request method:', req.method);
   console.log('3. Request URL:', req.originalUrl);
   console.log('4. Request headers:', JSON.stringify(req.headers, null, 2));
-  console.log('5. Raw request body:', req.body);
+  console.log('5. Request body:', req.body);
   
-  // Log raw body if available
-  let rawBody = '';
-  req.on('data', chunk => {
-    rawBody += chunk.toString();
-  });
-  
-  req.on('end', async () => {
-    console.log('6. Raw request body (from stream):', rawBody);
+  try {
+    const { table_number } = req.body;
     
-    try {
-      // Parse the raw body if it's a string
-      let parsedBody = {};
-      try {
-        parsedBody = rawBody ? JSON.parse(rawBody) : req.body;
-      } catch (e) {
-        console.error('7. Error parsing request body:', e);
-        return res.status(400).json({ error: 'Invalid JSON in request body' });
-      }
-      
-      console.log('8. Parsed request body:', JSON.stringify(parsedBody, null, 2));
-      
-      // Check if body is empty
-      if (!parsedBody || Object.keys(parsedBody).length === 0) {
-        console.error('9. Error: Empty request body received');
-        return res.status(400).json({ error: 'Request body is empty' });
-      }
-      
-      const { table_number } = parsedBody;
-      
-      if (!table_number) {
-        console.error('10. Error: Missing table_number in request');
-        return res.status(400).json({ error: 'table_number is required' });
-      }
-      
-      console.log('11. Processing table number:', table_number);
-      
-      // Generate session token
-      const session_token = jwt.sign(
-        { table_number, type: 'internal' },
-        process.env.JWT_SECRET,
-        { expiresIn: '12h' }
-      );
-      
-      // Insert into database
-      const [result] = await db.query(
-        'INSERT INTO clients (table_number, session_token, client_type) VALUES (?, ?, ?)',
-        [table_number, session_token, 'internal']
-      );
-      
-      console.log('12. Client created with ID:', result.insertId);
-      
-      return res.status(201).json({
-        client_id: result.insertId,
-        table_number,
-        session_token,
-        client_type: 'internal'
-      });
-      
-    } catch (error) {
-      console.error('13. Error in request processing:', error);
-      return res.status(500).json({ 
-        error: 'Internal server error',
-        details: error.message 
+    if (!table_number && table_number !== 0) {
+      console.error('Error: Missing table_number in request');
+      return res.status(400).json({ error: 'table_number is required' });
+    }
+    
+    console.log('Processing table number:', table_number);
+    
+    // Generate session token
+    const session_token = jwt.sign(
+      { table_number, type: 'internal' },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '12h' }
+    );
+    
+    // Insert into database
+    const { rows: [result] } = await db.query(
+      'INSERT INTO InternalClient (table_number, session_token) VALUES ($1, $2) RETURNING id',
+      [table_number, session_token]
+    );
+    
+    console.log('Client created with ID:', result.id);
+    
+    return res.status(201).json({
+      client_id: result.id,
+      table_number,
+      session_token,
+      client_type: 'internal'
+    });
+    
+  } catch (error) {
+    console.error('Error in request processing:', error);
+    
+    // Handle duplicate table number error
+    if (error.code === '23505') { // Unique violation
+      return res.status(409).json({ 
+        error: 'Table is already occupied',
+        details: 'This table number is already in use by another client'
       });
     }
-  });
-  
-  // Handle request errors
-  req.on('error', (error) => {
-    console.error('14. Request error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Error processing request',
-        details: error.message 
-      });
-    }
-  });
+    
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
 });
 
 // Add external client
 router.post('/clients/external/add', async (req, res) => {
-  console.log('POST /api/order/clients/external/add - Request received');
-  console.log('Request body:', req.body);
+  console.log('=== START: /api/order/clients/external/add ===');
+  console.log('1. Request received at:', new Date().toISOString());
+  console.log('2. Request body:', req.body);
   
   const { address, phone_number } = req.body;
 
   if (!address) {
+    console.error('Error: Address is required');
     return res.status(400).json({ error: 'Address is required' });
   }
 
@@ -128,17 +102,34 @@ router.post('/clients/external/add', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    const sql = 'INSERT INTO ExternalClient (address, phone_number, session_token) VALUES (?, ?, ?)';
-    const result = await db.query(sql, [address, phone_number, session_token]);
+    // Insert into database using PostgreSQL parameterized queries
+    const { rows: [result] } = await db.query(
+      'INSERT INTO ExternalClient (address, phone_number, session_token) VALUES ($1, $2, $3) RETURNING id',
+      [address, phone_number, session_token]
+    );
+    
+    console.log('External client created with ID:', result.id);
     
     res.status(201).json({ 
       message: 'External client created successfully', 
-      client_id: result[0].insertId,
+      client_id: result.id,
       session_token
     });
   } catch (err) {
     console.error('Error in POST /api/order/clients/external/add:', err);
-    res.status(500).json({ error: 'Failed to create external client', details: err.message });
+    
+    // Handle duplicate address error
+    if (err.code === '23505') { // Unique violation
+      return res.status(409).json({ 
+        error: 'Address already exists',
+        details: 'This address is already registered as an external client'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create external client', 
+      details: err.message 
+    });
   }
 });
 
@@ -148,9 +139,9 @@ router.get('/clients/internal', authenticateToken, async (req, res) => {
   
   try {
     const sql = 'SELECT * FROM InternalClient ORDER BY table_number';
-    const [rows] = await db.query(sql);
+    const { rows: clients } = await db.query(sql);
     
-    res.status(200).json(rows);
+    res.status(200).json(clients);
   } catch (err) {
     console.error('Error in GET /api/order/clients/internal:', err);
     res.status(500).json({ error: 'Failed to fetch internal clients', details: err.message });
@@ -163,9 +154,9 @@ router.get('/clients/external', authenticateToken, async (req, res) => {
   
   try {
     const sql = 'SELECT * FROM ExternalClient ORDER BY created_at DESC';
-    const [rows] = await db.query(sql);
+    const { rows: clients } = await db.query(sql);
     
-    res.status(200).json(rows);
+    res.status(200).json(clients);
   } catch (err) {
     console.error('Error in GET /api/order/clients/external:', err);
     res.status(500).json({ error: 'Failed to fetch external clients', details: err.message });
@@ -184,7 +175,7 @@ router.post('/clients/internal/delete', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM InternalClient WHERE id=?';
+    const sql = 'DELETE FROM InternalClient WHERE id=$1';
     await db.query(sql, [client_id]);
     
     res.status(200).json({ message: 'Internal client deleted successfully' });
@@ -206,7 +197,7 @@ router.post('/clients/external/delete', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM ExternalClient WHERE id=?';
+    const sql = 'DELETE FROM ExternalClient WHERE id=$1';
     await db.query(sql, [client_id]);
     
     res.status(200).json({ message: 'External client deleted successfully' });
@@ -241,22 +232,29 @@ router.post('/add', async (req, res) => {
 
     // Create order
     const orderSql = client_type === 'internal' 
-      ? 'INSERT INTO `Order` (menu_id, internal_client_id, client_type) VALUES (?, ?, ?)'
-      : 'INSERT INTO `Order` (menu_id, external_client_id, client_type) VALUES (?, ?, ?)';
+      ? 'INSERT INTO ordertable (menu_id, internal_client_id, type, status) VALUES ($1, $2, $3, $4) RETURNING id'
+      : 'INSERT INTO ordertable (menu_id, external_client_id, type, status) VALUES ($1, $2, $3, $4) RETURNING id';
     
-    const orderResult = await db.query(orderSql, [menu_id, client_id, client_type]);
-    const order_id = orderResult[0].insertId;
+    console.log('Creating order with SQL:', orderSql);
+    console.log('Parameters:', [menu_id, client_id, client_type]);
+    
+    const { rows: [result] } = await db.query(orderSql, [menu_id, client_id, client_type, 'pending']);
+    const order_id = result.id;
+    console.log('Order created with ID:', order_id);
 
     // Add order items
-    for (const dish of dishes) {
+    console.log('Adding order items:', dishes);
+    for (const [index, dish] of dishes.entries()) {
       const { dish_id, quantity } = dish;
       if (!dish_id || !quantity) {
-        throw new Error('Each dish must have dish_id and quantity');
+        throw new Error(`Dish at index ${index} is missing dish_id or quantity`);
       }
       
+      console.log(`Adding dish ${index + 1}/${dishes.length}:`, { dish_id, quantity });
+      
       await db.query(
-        'INSERT INTO OrderItem (order_id, dish_id, quantity) VALUES (?, ?, ?)',
-        [order_id, dish_id, quantity]
+        'INSERT INTO orderitem (order_id, dish_id, quantity, special_requests, status) VALUES ($1, $2, $3, $4, $5)',
+        [order_id, dish_id, quantity, '', 'pending']
       );
     }
 
@@ -281,10 +279,15 @@ router.get('/allOrders', authenticateToken, async (req, res) => {
   
   try {
     let sql = `
-      SELECT o.*, m.name as menu_name, m.date as menu_date,
-             ic.table_number, ec.address, ec.phone_number
-      FROM \`Order\` o
-      JOIN Menu m ON o.menu_id = m.id
+      SELECT o.*, 
+             ic.table_number, 
+             ec.address, 
+             ec.phone_number,
+             CASE 
+               WHEN o.internal_client_id IS NOT NULL THEN 'Table ' || ic.table_number
+               ELSE COALESCE(ec.address, 'N/A')
+             END as customer_info
+      FROM ordertable o
       LEFT JOIN InternalClient ic ON o.internal_client_id = ic.id
       LEFT JOIN ExternalClient ec ON o.external_client_id = ec.id
       WHERE 1=1
@@ -292,18 +295,18 @@ router.get('/allOrders', authenticateToken, async (req, res) => {
     const params = [];
 
     if (status) {
-      sql += ' AND o.status = ?';
+      sql += ' AND o.status = $1';
       params.push(status);
     }
 
     if (date) {
-      sql += ' AND DATE(o.created_at) = ?';
+      sql += ' AND DATE(o.created_at) = $1';
       params.push(date);
     }
 
     sql += ' ORDER BY o.created_at DESC';
 
-    const [rows] = await db.query(sql, params);
+    const { rows } = await db.query(sql, params);
 
     res.status(200).json(rows);
   } catch (err) {
@@ -323,12 +326,12 @@ router.post('/update_status', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Order ID and status are required' });
   }
 
-  if (!['pending', 'preparing', 'served', 'cancelled'].includes(status)) {
+  if (!['pending', 'served', 'cancelled'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status value' });
   }
 
   try {
-    const sql = 'UPDATE `Order` SET status=? WHERE id=?';
+    const sql = 'UPDATE ordertable SET status=$1 WHERE id=$2';
     await db.query(sql, [status, order_id]);
     
     res.status(200).json({ message: 'Order status updated successfully' });
@@ -350,7 +353,7 @@ router.post('/cancel', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'UPDATE `Order` SET status=? WHERE id=?';
+    const sql = 'UPDATE ordertable SET status=$1 WHERE id=$2';
     await db.query(sql, ['cancelled', order_id]);
     
     res.status(200).json({ message: 'Order cancelled successfully' });
@@ -373,14 +376,14 @@ router.post('/delete', authenticateToken, async (req, res) => {
 
   try {
     // Start a transaction to ensure data consistency
-    await db.query('START TRANSACTION');
+    await db.query('BEGIN');
 
     try {
       // First, delete all order items associated with this order
-      await db.query('DELETE FROM OrderItem WHERE order_id = ?', [order_id]);
+      await db.query('DELETE FROM orderitem WHERE order_id=$1', [order_id]);
       
       // Then delete the order itself
-      await db.query('DELETE FROM `Order` WHERE id = ?', [order_id]);
+      await db.query('DELETE FROM ordertable WHERE id=$1', [order_id]);
       
       // Commit the transaction if both operations succeed
       await db.query('COMMIT');
@@ -422,14 +425,14 @@ router.post('/add_item', async (req, res) => {
 
   try {
     // Check if item already exists in order
-    const [existingItem] = await db.query('SELECT * FROM OrderItem WHERE order_id = ? AND dish_id = ?', [order_id, dish_id]);
+    const { rows: existingItem } = await db.query('SELECT * FROM OrderItem WHERE order_id=$1 AND dish_id=$2', [order_id, dish_id]);
     
     if (existingItem.length > 0) {
       // Update quantity
-      await db.query('UPDATE OrderItem SET quantity = quantity + ? WHERE order_id = ? AND dish_id = ?', [quantity, order_id, dish_id]);
+      await db.query('UPDATE OrderItem SET quantity=quantity+$1 WHERE order_id=$2 AND dish_id=$3', [quantity, order_id, dish_id]);
     } else {
       // Add new item
-      await db.query('INSERT INTO OrderItem (order_id, dish_id, quantity) VALUES (?, ?, ?)', [order_id, dish_id, quantity]);
+      await db.query('INSERT INTO OrderItem (order_id, dish_id, quantity) VALUES ($1, $2, $3)', [order_id, dish_id, quantity]);
     }
     
     res.status(200).json({ message: 'Item added to order successfully' });
@@ -451,7 +454,7 @@ router.post('/remove_item', async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM OrderItem WHERE order_id=? AND dish_id=?';
+    const sql = 'DELETE FROM OrderItem WHERE order_id=$1 AND dish_id=$2';
     await db.query(sql, [order_id, dish_id]);
     
     res.status(200).json({ message: 'Item removed from order successfully' });
@@ -475,10 +478,10 @@ router.post('/update_item_quantity', async (req, res) => {
   try {
     if (quantity <= 0) {
       // Remove item if quantity is 0 or negative
-      await db.query('DELETE FROM OrderItem WHERE order_id=? AND dish_id=?', [order_id, dish_id]);
+      await db.query('DELETE FROM OrderItem WHERE order_id=$1 AND dish_id=$2', [order_id, dish_id]);
     } else {
       // Update quantity
-      await db.query('UPDATE OrderItem SET quantity=? WHERE order_id=? AND dish_id=?', [quantity, order_id, dish_id]);
+      await db.query('UPDATE OrderItem SET quantity=$1 WHERE order_id=$2 AND dish_id=$3', [quantity, order_id, dish_id]);
     }
     
     res.status(200).json({ message: 'Item quantity updated successfully' });
@@ -499,31 +502,31 @@ router.get('/:order_id', authenticateToken, async (req, res) => {
     const orderSql = `
       SELECT o.*, m.name as menu_name, m.date as menu_date,
              ic.table_number, ec.address, ec.phone_number
-      FROM \`Order\` o
-      JOIN Menu m ON o.menu_id = m.id
-      LEFT JOIN InternalClient ic ON o.internal_client_id = ic.id
-      LEFT JOIN ExternalClient ec ON o.external_client_id = ec.id
-      WHERE o.id = ?
+      FROM ordertable o
+      JOIN menu m ON o.menu_id = m.id
+      LEFT JOIN internalclient ic ON o.internal_client_id = ic.id
+      LEFT JOIN externalclient ec ON o.external_client_id = ec.id
+      WHERE o.id = $1
     `;
-    const [orderRows] = await db.query(orderSql, [order_id]);
+    const { rows: orders } = await db.query(orderSql, [order_id]);
     
-    if (orderRows.length === 0) {
+    if (orders.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     // Get order items
     const itemsSql = `
       SELECT oi.*, d.name as dish_name, d.description, d.price, s.name as section_name
-      FROM OrderItem oi
-      JOIN Dish d ON oi.dish_id = d.id
-      JOIN Section s ON d.section_id = s.id
-      WHERE oi.order_id = ?
+      FROM orderitem oi
+      JOIN dish d ON oi.dish_id = d.id
+      JOIN section s ON d.section_id = s.id
+      WHERE oi.order_id = $1
     `;
-    const [itemsRows] = await db.query(itemsSql, [order_id]);
+    const { rows: items } = await db.query(itemsSql, [order_id]);
 
     const orderData = {
-      ...orderRows[0],
-      items: itemsRows
+      ...orders[0],
+      items
     };
 
     res.status(200).json(orderData);
@@ -553,7 +556,7 @@ router.get('/tables/status', authenticateToken, async (req, res) => {
           ELSE 'available'
         END as table_status
       FROM InternalClient ic
-      LEFT JOIN \`Order\` o ON ic.id = o.internal_client_id 
+      LEFT JOIN "Order" o ON ic.id = o.internal_client_id 
         AND o.client_type = 'internal' 
         AND DATE(o.created_at) = CURDATE()
       LEFT JOIN Menu m ON o.menu_id = m.id
@@ -561,7 +564,7 @@ router.get('/tables/status', authenticateToken, async (req, res) => {
       ORDER BY ic.table_number
     `;
 
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
 
     res.status(200).json(rows);
   } catch (err) {
@@ -584,7 +587,7 @@ router.get('/kitchen/live_orders', authenticateToken, async (req, res) => {
           ORDER BY d.name SEPARATOR ', '
         ) as order_items,
         SUM(d.price * oi.quantity) as total_amount
-      FROM \`Order\` o
+      FROM "Order" o
       JOIN Menu m ON o.menu_id = m.id
       LEFT JOIN InternalClient ic ON o.internal_client_id = ic.id
       LEFT JOIN ExternalClient ec ON o.external_client_id = ec.id
@@ -596,7 +599,7 @@ router.get('/kitchen/live_orders', authenticateToken, async (req, res) => {
       ORDER BY o.created_at ASC
     `;
 
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
 
     res.status(200).json(rows);
   } catch (err) {
@@ -613,26 +616,17 @@ router.get('/orders/queue', authenticateToken, async (req, res) => {
     const sql = `
       SELECT 
         o.id, o.status, o.created_at, o.client_type,
-        ic.table_number, ec.address,
-        COUNT(oi.id) as items_count,
-        SUM(oi.quantity) as total_quantity,
-        CASE 
-          WHEN o.status = 'pending' THEN TIMESTAMPDIFF(MINUTE, o.created_at, NOW())
-          WHEN o.status = 'preparing' THEN TIMESTAMPDIFF(MINUTE, o.created_at, NOW())
-          ELSE 0
-        END as wait_time_minutes
-      FROM \`Order\` o
+        ic.table_number, ec.address, ec.phone_number
+      FROM "Order" o
       JOIN Menu m ON o.menu_id = m.id
       LEFT JOIN InternalClient ic ON o.internal_client_id = ic.id
       LEFT JOIN ExternalClient ec ON o.external_client_id = ec.id
-      JOIN OrderItem oi ON o.id = oi.order_id
       WHERE o.status IN ('pending', 'preparing')
         AND DATE(o.created_at) = CURDATE()
-      GROUP BY o.id
       ORDER BY o.created_at ASC
     `;
 
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
 
     res.status(200).json(rows);
   } catch (err) {
@@ -646,21 +640,20 @@ router.get('/orders/queue', authenticateToken, async (req, res) => {
 // ======================
 
 // Calculate order total helper
-const calculateOrderTotal = async (order_id) => {
-  try {
-    const sql = `
-      SELECT SUM(d.price * oi.quantity) as total
-      FROM OrderItem oi
-      JOIN Dish d ON oi.dish_id = d.id
-      WHERE oi.order_id = ?
-    `;
-    const [rows] = await db.query(sql, [order_id]);
-    return rows[0].total || 0;
-  } catch (err) {
-    console.error('Error calculating order total:', err);
-    return 0;
-  }
-};
-
+async function calculateOrderTotal(order_id) {
+  const { rows } = await db.query(
+    'SELECT SUM(quantity * unit_price) as total FROM OrderItem WHERE order_id=$1',
+    [order_id]
+  );
+  
+  const total = rows[0].total || 0;
+  
+  await db.query(
+    'UPDATE "Order" SET total_amount=$1 WHERE id=$2',
+    [total, order_id]
+  );
+  
+  return total;
+}
 
 module.exports = router;

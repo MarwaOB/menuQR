@@ -10,7 +10,13 @@ const { authenticateToken } = require('../middleware/auth');
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 1
+  }
+});
 
 // Configure Cloudinary
 cloudinary.config({
@@ -32,7 +38,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
   
   
   try {
-    const [rows] = await db.query('SELECT id, name, email, phone_number, address, description, created_at FROM Restaurant ');
+    const { rows } = await db.query('SELECT id, name, email, phone_number, address, description, created_at FROM Restaurant');
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
@@ -57,7 +63,7 @@ router.post('/profile/modify', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'UPDATE Restaurant SET name=?, email=?, phone_number=?, address=?, description=? WHERE id=?';
+    const sql = 'UPDATE Restaurant SET name=$1, email=$2, phone_number=$3, address=$4, description=$5 WHERE id=$6';
     await db.query(sql, [name, email, phone_number, address, description, restaurant_id]);
     
     res.status(200).json({ message: 'Restaurant profile updated successfully' });
@@ -96,22 +102,22 @@ router.post('/logo/upload', authenticateToken, upload.single('logo'), async (req
     const cloudinaryResult = await uploadToCloudinary();
 
     // Delete existing logo if any
-    const [existingLogo] = await db.query('SELECT * FROM RestaurantLogo WHERE restaurant_id = ?', [restaurant_id]);
-    if (existingLogo.length > 0) {
+    const { rows: existingLogos } = await db.query('SELECT * FROM RestaurantLogo WHERE restaurant_id = $1', [restaurant_id]);
+    if (existingLogos.length > 0) {
       // Delete from Cloudinary
-      if (existingLogo[0].public_id) {
-        await cloudinary.uploader.destroy(existingLogo[0].public_id);
+      if (existingLogos[0].public_id) {
+        await cloudinary.uploader.destroy(existingLogos[0].public_id);
       }
       // Delete local file
-      if (existingLogo[0].local_path && fs.existsSync(existingLogo[0].local_path)) {
-        fs.unlinkSync(existingLogo[0].local_path);
+      if (existingLogos[0].local_path && fs.existsSync(existingLogos[0].local_path)) {
+        fs.unlinkSync(existingLogos[0].local_path);
       }
       // Delete from DB
-      await db.query('DELETE FROM RestaurantLogo WHERE restaurant_id = ?', [restaurant_id]);
+      await db.query('DELETE FROM RestaurantLogo WHERE restaurant_id = $1', [restaurant_id]);
     }
 
     // Store new logo info in DB (now includes local_path)
-    const sql = 'INSERT INTO RestaurantLogo (restaurant_id, image_url, public_id, local_path) VALUES (?, ?, ?, ?)';
+    const sql = 'INSERT INTO RestaurantLogo (restaurant_id, image_url, public_id, local_path) VALUES ($1, $2, $3, $4) RETURNING *';
     await db.query(sql, [restaurant_id, cloudinaryResult.secure_url, cloudinaryResult.public_id, localPath]);
 
     res.status(201).json({
@@ -132,7 +138,7 @@ router.get('/:id/logo', authenticateToken, async (req, res) => {
   const { id } = req.params;
   
   try {
-    const [rows] = await db.query('SELECT image_url FROM RestaurantLogo WHERE restaurant_id = ?', [id]);
+    const { rows } = await db.query('SELECT image_url FROM RestaurantLogo WHERE restaurant_id = $1', [id]);
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'No logo found for this restaurant' });

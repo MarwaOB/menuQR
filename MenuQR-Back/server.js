@@ -79,7 +79,13 @@ cloudinary.config({
 
 // Multer configuration for file uploads (memory storage)
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit (increased for dish images)
+    files: 1
+  }
+});
 
 // Make upload and cloudinary available to routes
 app.set('cloudinary', cloudinary);

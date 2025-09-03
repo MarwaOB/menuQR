@@ -5,14 +5,14 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { FaTimesCircle } from 'react-icons/fa';
 
-const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview }) => {
+const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview, disabled = false }) => {
   const { t } = useTranslation();
 
   const onDrop = (acceptedFiles) => {
     const file = acceptedFiles[0];
     if (!file) return;
 
-    if (file.size > 500 * 1024) {
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
       alert(t('file_too_large'));
       return;
     }
@@ -30,7 +30,8 @@ const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview }) => {
     onDrop,
     accept: { 'image/*': [] },
     multiple: false,
-    maxSize: 500 * 1024,
+    maxSize: 5 * 1024 * 1024, // 5MB limit to match backend
+    disabled,
   });
 
   return (
@@ -40,8 +41,12 @@ const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview }) => {
       </label>*/}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-4 cursor-pointer transition ${
-          isDragActive ? 'border-yellow-500 bg-yellow-50' : 'border-gray-300'
+        className={`border-2 border-dashed rounded-xl p-4 transition ${
+          disabled 
+            ? 'bg-gray-100 border-gray-200 cursor-not-allowed' 
+            : isDragActive 
+              ? 'border-yellow-500 bg-yellow-50 cursor-pointer' 
+              : 'border-gray-300 cursor-pointer hover:border-yellow-400'
         }`}
       >
         <input {...getInputProps()} />

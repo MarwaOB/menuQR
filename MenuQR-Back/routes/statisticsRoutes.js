@@ -19,12 +19,11 @@ router.get('/analytics/orders', authenticateToken, async (req, res) => {
       SELECT 
         COUNT(*) as total_orders,
         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
-        COUNT(CASE WHEN status = 'preparing' THEN 1 END) as preparing_orders,
         COUNT(CASE WHEN status = 'served' THEN 1 END) as served_orders,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
-        COUNT(CASE WHEN client_type = 'internal' THEN 1 END) as internal_orders,
-        COUNT(CASE WHEN client_type = 'external' THEN 1 END) as external_orders
-      FROM \`Order\`
+        COUNT(CASE WHEN type = 'internal' THEN 1 END) as internal_orders,
+        COUNT(CASE WHEN type = 'external' THEN 1 END) as external_orders
+      FROM ordertable
     `;
     
     let currentParams = [];
@@ -32,8 +31,8 @@ router.get('/analytics/orders', authenticateToken, async (req, res) => {
     let previousParams = [];
 
     if (start_date && end_date) {
-      currentSql += ' WHERE DATE(created_at) BETWEEN ? AND ?';
-      currentParams.push(start_date, end_date);
+      currentSql += ' WHERE DATE(created_at) BETWEEN $1 AND $2';
+      currentParams = [start_date, end_date];
       
       // Calculate previous period dates
       const startDateObj = new Date(start_date);
@@ -45,21 +44,20 @@ router.get('/analytics/orders', authenticateToken, async (req, res) => {
       const prevStartDate = new Date(prevEndDate);
       prevStartDate.setDate(prevStartDate.getDate() - daysDiff);
       
-      previousSql += ' WHERE DATE(created_at) BETWEEN ? AND ?';
-      previousParams.push(
+      previousSql += ' WHERE DATE(created_at) BETWEEN $1 AND $2';
+      previousParams = [
         prevStartDate.toISOString().split('T')[0],
         prevEndDate.toISOString().split('T')[0]
-      );
+      ];
     }
 
     // Execute both queries
-    const [currentRows] = await db.query(currentSql, currentParams);
-    const [previousRows] = await db.query(previousSql, previousParams);
+    const { rows: currentRows } = await db.query(currentSql, currentParams);
+    const { rows: previousRows } = await db.query(previousSql, previousParams);
     
     const current = currentRows[0] || {
       total_orders: 0,
       pending_orders: 0,
-      preparing_orders: 0,
       served_orders: 0,
       cancelled_orders: 0,
       internal_orders: 0,
@@ -69,7 +67,6 @@ router.get('/analytics/orders', authenticateToken, async (req, res) => {
     const previous = previousRows[0] || {
       total_orders: 0,
       pending_orders: 0,
-      preparing_orders: 0,
       served_orders: 0,
       cancelled_orders: 0,
       internal_orders: 0,
@@ -109,18 +106,20 @@ router.get('/analytics/popular_dishes', authenticateToken, async (req, res) => {
       SELECT 
         d.id, d.name, d.description, d.price,
         s.name as section_name,
+        m.name as menu_name,
         COALESCE(SUM(oi.quantity), 0) as total_ordered,
         COUNT(DISTINCT o.id) as times_ordered
       FROM Dish d
       JOIN Section s ON d.section_id = s.id
-      LEFT JOIN OrderItem oi ON d.id = oi.dish_id
-      LEFT JOIN \`Order\` o ON oi.order_id = o.id AND o.status != 'cancelled'
-      GROUP BY d.id, d.name, d.description, d.price, s.name
+      JOIN Menu m ON d.menu_id = m.id
+      LEFT JOIN orderitem oi ON d.id = oi.dish_id
+      LEFT JOIN ordertable o ON oi.order_id = o.id AND o.status != 'cancelled'
+      GROUP BY d.id, d.name, d.description, d.price, s.name, m.name
       ORDER BY total_ordered DESC, times_ordered DESC
-      LIMIT ?
+      LIMIT $1
     `;
     
-    const [rows] = await db.query(sql, [parseInt(limit)]);
+    const { rows } = await db.query(sql, [parseInt(limit)]);
     
     res.status(200).json(rows);
   } catch (err) {
@@ -142,16 +141,16 @@ router.get('/analytics/revenue', authenticateToken, async (req, res) => {
         DATE(o.created_at) as order_date,
         COALESCE(SUM(d.price * oi.quantity), 0) as daily_revenue,
         COUNT(DISTINCT o.id) as orders_count
-      FROM \`Order\` o
-      JOIN OrderItem oi ON o.id = oi.order_id
+      FROM ordertable o
+      JOIN orderitem oi ON o.id = oi.order_id
       JOIN Dish d ON oi.dish_id = d.id
       WHERE o.status = 'served'
     `;
     
     let totalRevenueSql = `
       SELECT COALESCE(SUM(d.price * oi.quantity), 0) as total_revenue
-      FROM \`Order\` o
-      JOIN OrderItem oi ON o.id = oi.order_id
+      FROM ordertable o
+      JOIN orderitem oi ON o.id = oi.order_id
       JOIN Dish d ON oi.dish_id = d.id
       WHERE o.status = 'served'
     `;
@@ -161,11 +160,11 @@ router.get('/analytics/revenue', authenticateToken, async (req, res) => {
     let totalPreviousParams = [];
 
     if (start_date && end_date) {
-      currentSql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
-      currentParams.push(start_date, end_date);
+      currentSql += ' AND DATE(o.created_at) BETWEEN $1 AND $2';
+      currentParams = [start_date, end_date];
       
-      totalRevenueSql += ' AND DATE(o.created_at) BETWEEN ? AND ?';
-      totalCurrentParams.push(start_date, end_date);
+      totalRevenueSql += ' AND DATE(o.created_at) BETWEEN $1 AND $2';
+      totalCurrentParams = [start_date, end_date];
       
       // Calculate previous period for total revenue comparison
       const startDateObj = new Date(start_date);
@@ -177,34 +176,29 @@ router.get('/analytics/revenue', authenticateToken, async (req, res) => {
       const prevStartDate = new Date(prevEndDate);
       prevStartDate.setDate(prevStartDate.getDate() - daysDiff);
       
-      const previousRevenueSql = totalRevenueSql.replace(
-        'AND DATE(o.created_at) BETWEEN ? AND ?',
-        'AND DATE(o.created_at) BETWEEN ? AND ?'
-      );
-      
-      totalPreviousParams.push(
+      totalPreviousParams = [
         prevStartDate.toISOString().split('T')[0],
         prevEndDate.toISOString().split('T')[0]
-      );
+      ];
     }
 
     currentSql += ' GROUP BY DATE(o.created_at) ORDER BY order_date DESC';
 
     // Execute queries
-    const [dailyRows] = await db.query(currentSql, currentParams);
-    const [currentRevenueRows] = await db.query(totalRevenueSql, totalCurrentParams);
+    const { rows: dailyRows } = await db.query(currentSql, currentParams);
+    const { rows: currentRevenueRows } = await db.query(totalRevenueSql, totalCurrentParams);
     
     let revenueChange = 0;
     if (start_date && end_date && totalPreviousParams.length > 0) {
       const previousRevenueSql = `
         SELECT COALESCE(SUM(d.price * oi.quantity), 0) as total_revenue
-        FROM \`Order\` o
+        FROM ordertable o
         JOIN OrderItem oi ON o.id = oi.order_id
         JOIN Dish d ON oi.dish_id = d.id
-        WHERE o.status = 'served' AND DATE(o.created_at) BETWEEN ? AND ?
+        WHERE o.status = 'served' AND DATE(o.created_at) BETWEEN $1 AND $2
       `;
       
-      const [previousRevenueRows] = await db.query(previousRevenueSql, totalPreviousParams);
+      const { rows: previousRevenueRows } = await db.query(previousRevenueSql, totalPreviousParams);
       
       const currentTotal = currentRevenueRows[0]?.total_revenue || 0;
       const previousTotal = previousRevenueRows[0]?.total_revenue || 0;

@@ -39,7 +39,7 @@ router.post('/register', validateRegistration, async (req, res) => {
 
   try {
     // Check if email already exists
-    const [existingRestaurant] = await db.query('SELECT id FROM Restaurant WHERE email = ?', [sanitizedData.email]);
+    const { rows: existingRestaurant } = await db.query('SELECT id FROM Restaurant WHERE email = $1', [sanitizedData.email]);
     if (existingRestaurant.length > 0) {
       console.log('Registration failed: Email already exists');
       return res.status(400).json({ error: 'Email already registered' });
@@ -49,8 +49,8 @@ router.post('/register', validateRegistration, async (req, res) => {
     const hashedPassword = await bcrypt.hash(sanitizedData.password, 10);
 
     // Insert new restaurant with sanitized data
-    const sql = 'INSERT INTO Restaurant (name, email, password, phone_number, address, description) VALUES (?, ?, ?, ?, ?, ?)';
-    const result = await db.query(sql, [
+    const sql = 'INSERT INTO Restaurant (name, email, password, phone_number, address, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id';
+    const { rows } = await db.query(sql, [
       sanitizedData.name, 
       sanitizedData.email, 
       hashedPassword, 
@@ -59,7 +59,8 @@ router.post('/register', validateRegistration, async (req, res) => {
       sanitizedData.description
     ]);
     
-    console.log('Restaurant registered successfully:', result.insertId);
+    const restaurantId = rows[0].id;
+    console.log('Restaurant registered successfully:', restaurantId);
     
     // Send welcome email (optional - don't fail registration if email fails)
     try {
@@ -72,7 +73,7 @@ router.post('/register', validateRegistration, async (req, res) => {
     
     res.status(201).json({
       message: 'Restaurant registered successfully',
-      restaurant_id: result.insertId
+      restaurant_id: restaurantId
     });
   } catch (err) {
     console.error('Error in POST /api/auth/register:', err);
@@ -89,7 +90,7 @@ router.post('/login', validateLogin, async (req, res) => {
   const sanitizedEmail = sanitizeEmail(email);
 
   try {
-    const [rows] = await db.query('SELECT * FROM Restaurant WHERE email = ?', [sanitizedEmail]);
+    const { rows } = await db.query('SELECT * FROM Restaurant WHERE email = $1', [sanitizedEmail]);
     
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -110,7 +111,7 @@ router.post('/login', validateLogin, async (req, res) => {
     );
 
     // Update token in database
-    await db.query('UPDATE Restaurant SET token = ? WHERE id = ?', [token, restaurant.id]);
+    await db.query('UPDATE Restaurant SET token = $1 WHERE id = $2', [token, restaurant.id]);
 
     res.status(200).json({
       message: 'Login successful',

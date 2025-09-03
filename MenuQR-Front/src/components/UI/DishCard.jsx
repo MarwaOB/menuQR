@@ -3,6 +3,7 @@
 import React from 'react';
 import MyButton from './Button';
 import { FaPen, FaTrash } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 
 const DishCard = ({
   image,
@@ -14,6 +15,7 @@ const DishCard = ({
   showActions = true,
   id,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col md:flex-row items-start gap-4 p-5 rounded-2xl border border-gray-200 shadow-lg bg-white/40 backdrop-blur-sm transition-all hover:shadow-xl group">
       
@@ -52,7 +54,7 @@ const DishCard = ({
                 className="bg-yellow-400 hover:bg-yellow-500 text-black px-3 py-1 text-sm flex items-center gap-1"
               >
                 <FaPen className="text-xs" />
-                Update
+                {t('update')}
               </MyButton>
             )}
             {onDelete && (
@@ -61,7 +63,7 @@ const DishCard = ({
                 className="bg-red-400 hover:bg-red-500 text-white px-3 py-1 text-sm flex items-center gap-1"
               >
                 <FaTrash className="text-xs" />
-                Delete
+                {t('delete')}
               </MyButton>
             )}
           </div>

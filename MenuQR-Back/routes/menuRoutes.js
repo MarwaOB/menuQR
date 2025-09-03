@@ -26,12 +26,12 @@ router.get('/current', async (req, res) => {
     console.log(`Server's local date: ${todayLocalStr}`);
 
     // First get ALL menus with formatted dates
-    const [allMenus] = await db.query(`
+    const { rows: allMenus } = await db.query(`
       SELECT 
         id, 
         name, 
         date,
-        DATE_FORMAT(date, '%Y-%m-%d') as formatted_date
+        TO_CHAR(date, 'YYYY-MM-DD') as formatted_date
       FROM Menu 
       ORDER BY date DESC
     `);
@@ -72,12 +72,12 @@ router.get('/current', async (req, res) => {
         d.price,
         di.image_url
       FROM Section s
-      LEFT JOIN Dish d ON s.id = d.section_id AND d.menu_id = ?
+      LEFT JOIN Dish d ON s.id = d.section_id AND d.menu_id = $1
       LEFT JOIN DishImage di ON d.id = di.dish_id
       ORDER BY s.name, d.name
     `;
     
-    const [dishesRows] = await db.query(dishesSql, [currentMenu.id]);
+    const { rows: dishesRows } = await db.query(dishesSql, [currentMenu.id]);
     console.log(`Found ${dishesRows.length} dish records`);
 
     // Organize dishes by sections
@@ -170,7 +170,7 @@ router.get('/menuSuggestions', async (req, res) => {
       LIMIT 20
     `;
     
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
     
     res.status(200).json({
       message: 'Menu suggestions based on last 30 days',
@@ -200,12 +200,16 @@ router.post('/add', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'INSERT INTO Menu (name, date) VALUES (?, ?)';
+    const sql = 'INSERT INTO Menu (name, date) VALUES ($1, $2) RETURNING id';
     const result = await db.query(sql, [name, date]);
+    
+    if (result.rows.length === 0) {
+      throw new Error('Failed to create menu - no ID returned');
+    }
     
     res.status(201).json({ 
       message: 'Menu created successfully', 
-      menu_id: result[0].insertId 
+      menu_id: result.rows[0].id 
     });
   } catch (err) {
     console.error('Error in POST /api/menu/add:', err);
@@ -223,7 +227,7 @@ router.get('/allMenus', authenticateToken, async (req, res) => {
     
   try {
     const sql = 'SELECT * FROM Menu ORDER BY date DESC';
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
     
     res.status(200).json(rows);
   } catch (err) {
@@ -239,8 +243,8 @@ router.get('/:menu_id', async (req, res) => {
   const { menu_id } = req.params;
   
   try {
-    const sql = 'SELECT * FROM Menu WHERE id = ?';
-    const [rows] = await db.query(sql, [menu_id]);
+    const sql = 'SELECT * FROM Menu WHERE id = $1';
+    const { rows } = await db.query(sql, [menu_id]);
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Menu not found' });
@@ -265,7 +269,7 @@ router.post('/modify', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'UPDATE Menu SET name=?, date=? WHERE id=?';
+    const sql = 'UPDATE Menu SET name = $1, date = $2 WHERE id = $3';
     await db.query(sql, [name, date, menu_id]);
     
     res.status(200).json({ message: 'Menu updated successfully' });
@@ -293,13 +297,13 @@ router.post('/delete', authenticateToken, async (req, res) => {
     await db.query('START TRANSACTION');
 
     // 1. Get all dishes in this menu
-    const [dishes] = await db.query('SELECT id FROM Dish WHERE menu_id = ?', [menu_id]);
+    const { rows: dishes } = await db.query('SELECT id FROM Dish WHERE menu_id = $1', [menu_id]);
     console.log(`Found ${dishes.length} dishes to delete for menu ${menu_id}`);
 
     // 2. Delete all dish images (both from storage and database)
     for (const dish of dishes) {
       // Get all images for this dish
-      const [images] = await db.query('SELECT * FROM DishImage WHERE dish_id = ?', [dish.id]);
+      const { rows: images } = await db.query('SELECT * FROM DishImage WHERE dish_id = $1', [dish.id]);
       
       for (const image of images) {
         // Delete from Cloudinary
@@ -324,15 +328,15 @@ router.post('/delete', authenticateToken, async (req, res) => {
       }
       
       // Delete image records from database
-      await db.query('DELETE FROM DishImage WHERE dish_id = ?', [dish.id]);
+      await db.query('DELETE FROM DishImage WHERE dish_id = $1', [dish.id]);
     }
 
     // 3. Delete all dishes in this menu
-    await db.query('DELETE FROM Dish WHERE menu_id = ?', [menu_id]);
+    await db.query('DELETE FROM Dish WHERE menu_id = $1', [menu_id]);
     console.log(`Deleted ${dishes.length} dishes for menu ${menu_id}`);
 
     // 4. Finally delete the menu itself
-    await db.query('DELETE FROM Menu WHERE id = ?', [menu_id]);
+    await db.query('DELETE FROM Menu WHERE id = $1', [menu_id]);
     console.log(`Deleted menu ${menu_id}`);
 
     // Commit transaction
@@ -363,8 +367,8 @@ router.get('/:menu_id/full', async (req, res) => {
   
   try {
     // Get menu info
-    const menuSql = 'SELECT * FROM Menu WHERE id = ?';
-    const [menuRows] = await db.query(menuSql, [menu_id]);
+    const menuSql = 'SELECT * FROM Menu WHERE id = $1';
+    const { rows: menuRows } = await db.query(menuSql, [menu_id]);
     
     if (menuRows.length === 0) {
       return res.status(404).json({ error: 'Menu not found' });
@@ -377,11 +381,11 @@ router.get('/:menu_id/full', async (req, res) => {
         d.id as dish_id, d.name as dish_name, d.description, d.price,
         di.image_url
       FROM Section s
-      LEFT JOIN Dish d ON s.id = d.section_id AND d.menu_id = ?
+      LEFT JOIN Dish d ON s.id = d.section_id AND d.menu_id = $1
       LEFT JOIN DishImage di ON d.id = di.dish_id
       ORDER BY s.name, d.name
     `;
-    const [dishesRows] = await db.query(dishesSql, [menu_id]);
+    const { rows: dishesRows } = await db.query(dishesSql, [menu_id]);
 
     // Organize dishes by sections
     const sections = {};
@@ -449,13 +453,13 @@ router.post('/create-from-existing', authenticateToken, async (req, res) => {
 
     // 1. Create the new menu
     const menuResult = await db.query(
-      'INSERT INTO Menu (name, date) VALUES (?, ?)',
+      'INSERT INTO Menu (name, date) VALUES ($1, $2) RETURNING id',
       [name, date]
     );
-    const newMenuId = menuResult[0].insertId;
+    const newMenuId = menuResult.rows[0].id;
 
     // 2. Get all sections for mapping categories
-    const [sections] = await db.query('SELECT * FROM Section');
+    const { rows: sections } = await db.query('SELECT * FROM Section');
     const sectionMap = {};
     sections.forEach(section => {
       sectionMap[section.name] = section.id;
@@ -473,11 +477,11 @@ router.post('/create-from-existing', authenticateToken, async (req, res) => {
 
       // Insert the dish
       const dishResult = await db.query(
-        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5)',
         [dish.name, dish.description, dish.price, sectionId, newMenuId]
       );
       
-      const newDishId = dishResult[0].insertId;
+      const newDishId = dishResult.rows[0].id;
       
       // If dish has an image and it's not a new dish, we might want to copy the image
       // For now, we'll skip image copying as it's complex with different storage systems
@@ -525,7 +529,7 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
     await db.query('START TRANSACTION');
 
     // Get source menu info
-    const [sourceMenu] = await db.query('SELECT * FROM Menu WHERE id = ?', [source_menu_id]);
+    const { rows: sourceMenu } = await db.query('SELECT * FROM Menu WHERE id = $1', [source_menu_id]);
     if (sourceMenu.length === 0) {
       throw new Error('Source menu not found');
     }
@@ -533,13 +537,13 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
     // Create new menu
     const menuName = new_name || `${sourceMenu[0].name} - Copy`;
     const newMenuResult = await db.query(
-      'INSERT INTO Menu (name, date) VALUES (?, ?)',
+      'INSERT INTO Menu (name, date) VALUES ($1, $2) RETURNING id',
       [menuName, new_date]
     );
-    const new_menu_id = newMenuResult[0].insertId;
+    const new_menu_id = newMenuResult.rows[0].id;
 
     // Get original dishes
-    const [originalDishes] = await db.query('SELECT * FROM Dish WHERE menu_id = ?', [source_menu_id]);
+    const { rows: originalDishes } = await db.query('SELECT * FROM Dish WHERE menu_id = $1', [source_menu_id]);
     
     let dishesProcessed = 0;
     const modificationMap = {};
@@ -574,7 +578,7 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
       };
 
       await db.query(
-        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5)',
         [dishData.name, dishData.description, dishData.price, dishData.section_id, new_menu_id]
       );
       
@@ -584,7 +588,7 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
     // Add new dishes
     if (new_dishes && new_dishes.length > 0) {
       // Get sections for mapping
-      const [sections] = await db.query('SELECT * FROM Section');
+      const { rows: sections } = await db.query('SELECT * FROM Section');
       const sectionMap = {};
       sections.forEach(section => {
         sectionMap[section.name] = section.id;
@@ -594,7 +598,7 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
         const sectionId = sectionMap[newDish.category] || sectionMap[Object.keys(sectionMap)[0]];
         
         await db.query(
-          'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5)',
           [newDish.name, newDish.description, newDish.price, sectionId, new_menu_id]
         );
         
@@ -635,7 +639,7 @@ router.post('/copy', authenticateToken, async (req, res) => {
     await db.query('START TRANSACTION');
 
     // Get source menu info
-    const [sourceMenu] = await db.query('SELECT * FROM Menu WHERE id = ?', [source_menu_id]);
+    const { rows: sourceMenu } = await db.query('SELECT * FROM Menu WHERE id = $1', [source_menu_id]);
     if (sourceMenu.length === 0) {
       throw new Error('Source menu not found');
     }
@@ -643,13 +647,13 @@ router.post('/copy', authenticateToken, async (req, res) => {
     // Create new menu
     const menuName = new_name || `${sourceMenu[0].name} - Copy`;
     const newMenuResult = await db.query(
-      'INSERT INTO Menu (name, date) VALUES (?, ?)',
+      'INSERT INTO Menu (name, date) VALUES ($1, $2) RETURNING id',
       [menuName, new_date]
     );
-    const new_menu_id = newMenuResult[0].insertId;
+    const new_menu_id = newMenuResult.rows[0].id;
 
     // Copy all dishes
-    const [dishes] = await db.query('SELECT * FROM Dish WHERE menu_id = ?', [source_menu_id]);
+    const { rows: dishes } = await db.query('SELECT * FROM Dish WHERE menu_id = $1', [source_menu_id]);
     for (const dish of dishes) {
       await db.query(
         'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',

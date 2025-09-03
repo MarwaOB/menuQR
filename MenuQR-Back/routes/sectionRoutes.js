@@ -19,12 +19,12 @@ router.post('/add', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'INSERT INTO Section (name) VALUES (?)';
-    const result = await db.query(sql, [name]);
+    const sql = 'INSERT INTO Section (name) VALUES ($1) RETURNING id';
+    const { rows: [result] } = await db.query(sql, [name]);
     
     res.status(201).json({ 
       message: 'Section created successfully', 
-      section_id: result[0].insertId 
+      section_id: result.id 
     });
   } catch (err) {
     console.error('Error in POST /api/section/add:', err);
@@ -42,7 +42,7 @@ router.get('/allSections', async (req, res) => {
   
   try {
     const sql = 'SELECT * FROM Section ORDER BY name';
-    const [rows] = await db.query(sql);
+    const { rows } = await db.query(sql);
     
     res.status(200).json(rows);
   } catch (err) {
@@ -63,7 +63,7 @@ router.post('/modify', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'UPDATE Section SET name=? WHERE id=?';
+    const sql = 'UPDATE Section SET name=$1 WHERE id=$2';
     await db.query(sql, [name, section_id]);
     
     res.status(200).json({ message: 'Section updated successfully' });
@@ -85,7 +85,7 @@ router.post('/delete', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'DELETE FROM Section WHERE id=?';
+    const sql = 'DELETE FROM Section WHERE id=$1';
     await db.query(sql, [section_id]);
     
     res.status(200).json({ message: 'Section deleted successfully' });
