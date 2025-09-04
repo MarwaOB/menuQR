@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS ExternalClient (
 -- ======================
 CREATE TABLE IF NOT EXISTS OrderTable (
     id SERIAL PRIMARY KEY,
-    order_number VARCHAR(50) UNIQUE,
     status VARCHAR(50) NOT NULL,
     type VARCHAR(20) NOT NULL, -- 'internal' or 'external'
+    menu_id INTEGER NOT NULL REFERENCES Menu(id) ON DELETE CASCADE,
     internal_client_id INTEGER REFERENCES InternalClient(id) ON DELETE SET NULL,
     external_client_id INTEGER REFERENCES ExternalClient(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -110,6 +110,18 @@ CREATE TABLE IF NOT EXISTS OrderItem (
 CREATE INDEX IF NOT EXISTS idx_order_status ON OrderTable(status);
 CREATE INDEX IF NOT EXISTS idx_order_created_at ON OrderTable(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_item_status ON OrderItem(status);
+
+-- ======================
+-- DEFAULT MENU SECTIONS
+-- ======================
+INSERT INTO Section (name) VALUES
+  ('Drinks'),
+  ('Starters'),
+  ('Main Course'),
+  ('Desserts'),
+  ('Sides'),
+  ('Sauces')
+ON CONFLICT (name) DO NOTHING;
 
 -- ======================
 -- TRIGGERS FOR UPDATED_AT
