@@ -411,8 +411,8 @@ const CustomerMenuPage = ({ id = 'current' }) => {
         {/* Cart Modal */}
         {showCart && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-              <div className="p-6 border-b">
+            <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+              <div className="p-6 border-b flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-semibold">{t('customer.your_cart')}</h3>
                   <button
@@ -424,7 +424,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
                 </div>
               </div>
 
-              <div className="p-6 max-h-96 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto p-6">
                 {cart.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">{t('customer.cart_empty')}</p>
                 ) : (
@@ -457,7 +457,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
               </div>
 
               {cart.length > 0 && (
-                <div className="p-6 border-t bg-gray-50">
+                <div className="p-6 border-t bg-gray-50 flex-shrink-0">
                   <div className="flex justify-between items-center mb-4">
                     <span className="font-semibold">{t('customer.total')}:</span>
                     <span className="font-bold text-xl">{getCartTotal()} {t('currency')}</span>
