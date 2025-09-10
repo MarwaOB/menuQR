@@ -245,9 +245,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
 
       // Create client
       if (clientType === 'dine-in') {
-        clientResult = await orderAPI.createInternalClient({ 
-          table_number: parseInt(tableNumber) 
-        });
+        clientResult = await orderAPI.createInternalClient(parseInt(tableNumber));
       } else if (clientType === 'delivery') {
         clientResult = await orderAPI.createExternalClient({
           address: deliveryAddress,

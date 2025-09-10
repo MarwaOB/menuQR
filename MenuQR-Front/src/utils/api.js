@@ -326,6 +326,13 @@ export const orderAPI = {
   getQueue: () => apiRequest('/order/orders/queue'),
 
   // Client management
+  createInternalClient: (tableNumber) =>
+    apiRequest('/order/clients/internal/add', {
+      method: 'POST',
+      body: JSON.stringify({ table_number: tableNumber }),
+    }),
+    
+  // Alias for backward compatibility
   addInternalClient: (tableNumber) =>
     apiRequest('/order/clients/internal/add', {
       method: 'POST',
