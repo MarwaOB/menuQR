@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     error: 'Internal Server Error',
     message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : {}
+    stack: err.stack
   });
 });
 
@@ -137,8 +137,8 @@ app.use((err, req, res, next) => {
   }
   res.status(500).json({ 
     error: 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    details: err.message,
+    stack: err.stack
   });
 });
 

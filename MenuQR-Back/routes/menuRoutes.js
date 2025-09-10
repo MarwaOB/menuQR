@@ -137,7 +137,7 @@ router.get('/current', async (req, res) => {
     console.error(err.stack);
     res.status(500).json({ 
       error: 'Failed to fetch current menu',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      details: err.message
     });
   }
 });
@@ -508,7 +508,7 @@ router.post('/create-from-existing', authenticateToken, async (req, res) => {
     } else {
       res.status(500).json({ 
         error: 'Failed to create menu from existing',
-        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        details: err.message
       });
     }
   }
@@ -619,7 +619,7 @@ router.post('/copy-with-modifications', authenticateToken, async (req, res) => {
     console.error('Error in POST /api/menu/copy-with-modifications:', err);
     res.status(500).json({ 
       error: 'Failed to copy menu with modifications', 
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      details: err.message
     });
   }
 });

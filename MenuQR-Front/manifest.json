@@ -1,0 +1,28 @@
+{
+  "short_name": "MenuQR",
+  "name": "MenuQR - Restaurant Menu & Ordering",
+  "description": "Digital restaurant menu with offline ordering capability",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/menu/current",
+  "display": "standalone",
+  "theme_color": "#ef4444",
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["food", "restaurant", "menu"],
+  "shortcuts": [
+    {
+      "name": "View Menu",
+      "short_name": "Menu",
+      "description": "View the current restaurant menu",
+      "url": "/menu/current"
+    }
+  ]
+}
