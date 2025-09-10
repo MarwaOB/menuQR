@@ -339,6 +339,13 @@ export const orderAPI = {
       body: JSON.stringify({ table_number: tableNumber }),
     }),
 
+  createExternalClient: (clientData) =>
+    apiRequest('/order/clients/external/add', {
+      method: 'POST',
+      body: JSON.stringify(clientData),
+    }),
+    
+  // Alias for backward compatibility
   addExternalClient: (clientData) =>
     apiRequest('/order/clients/external/add', {
       method: 'POST',
