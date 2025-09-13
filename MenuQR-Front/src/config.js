@@ -10,6 +10,7 @@ if (!config.API_BASE_URL) {
   console.error('API_BASE_URL is not set. Please set the VITE_API_URL environment variable.');
 }
 
+
 // Export the config with utility functions
 export default {
   ...config,
