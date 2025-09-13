@@ -41,11 +41,8 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
       setLocalQrData(localUrl.toString());
 
       // Generate public URL (Online)
-      const publicUrl = new URL('/menu/current', window.location.origin);
-      if (window.location.hostname === 'localhost') {
-        publicUrl.hostname = 'your-public-domain.com';
-        publicUrl.protocol = 'https:';
-      }
+      // Use the production URL for the online QR code
+      const publicUrl = new URL('https://elegant-paprenjak-543345.netlify.app/menu/current');
       setOnlineQrData(publicUrl.toString());
 
       // Generate QR codes
@@ -113,7 +110,7 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
           <div className="mb-8 p-4 bg-gray-50 rounded-xl">
             <div className={`flex items-center justify-center gap-2 mb-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <FaWifi className="text-green-500" />
-              <h4 className="font-medium">{t('qr_modal.local_network')} (LAN)</h4>
+              <h4 className="font-medium">{t('qr_modal.local_network')}</h4>
             </div>
             <div className="flex justify-center mb-3">
               <div className="p-2 bg-white rounded-lg border-2 border-gray-200">
@@ -133,7 +130,7 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
           <div className="p-4 bg-gray-50 rounded-xl">
             <div className={`flex items-center justify-center gap-2 mb-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <FaGlobe className="text-blue-500" />
-              <h4 className="font-medium">{t('qr_modal.online_public')} ({t('public')})</h4>
+              <h4 className="font-medium">{t('qr_modal.online_public')}</h4>
             </div>
             <div className="flex justify-center mb-3">
               <div className="p-2 bg-white rounded-lg border-2 border-gray-200">

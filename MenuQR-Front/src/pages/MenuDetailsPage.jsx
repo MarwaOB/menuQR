@@ -21,7 +21,15 @@ const MenuDetailsPage = () => {
   useEffect(() => {
     const fetchMenuDetails = async () => {
       try {
-        const data = await menuAPI.getFull(id);
+        let menuId = id;
+        
+        // If 'current' is requested, first get the current menu ID
+        if (id === 'current') {
+          const currentMenu = await menuAPI.getCurrent();
+          menuId = currentMenu.id;
+        }
+        
+        const data = await menuAPI.getFull(menuId);
 
         // Extract sections and flatten dishes from nested structure
         const sectionsData = data.sections || [];
@@ -41,7 +49,7 @@ const MenuDetailsPage = () => {
         }, []);
         setDishes(allDishes);
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching menu details:', err);
       } finally {
         setLoading(false);
       }
