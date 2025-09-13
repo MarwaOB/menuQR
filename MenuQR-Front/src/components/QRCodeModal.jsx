@@ -34,9 +34,12 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
   useEffect(() => {
     if (isOpen) {
       // Generate local URL (LAN)
-      const localUrl = new URL('/menu/current', getBaseUrl());
-      if (window.location.hostname === 'localhost') {
+      const localUrl = new URL('/menu/current', window.location.origin);
+      // If running on localhost, use the development server URL
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         localUrl.protocol = 'http:';
+        localUrl.hostname = '10.157.233.225';
+        localUrl.port = '5173';
       }
       setLocalQrData(localUrl.toString());
 
@@ -133,7 +136,7 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
           <div className="p-4 bg-gray-50 rounded-xl">
             <div className={`flex items-center justify-center gap-2 mb-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <FaGlobe className="text-blue-500" />
-              <h4 className="font-medium">{t('qr_modal.online_public')} ({t('public')})</h4>
+              <h4 className="font-medium">{t('qr_modal.online_public')}</h4>
             </div>
             <div className="flex justify-center mb-3">
               <div className="p-2 bg-white rounded-lg border-2 border-gray-200">
