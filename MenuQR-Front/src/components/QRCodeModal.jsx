@@ -31,6 +31,7 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
   const [localQrData, setLocalQrData] = useState('');
   const [onlineQrData, setOnlineQrData] = useState('');
 
+  
   useEffect(() => {
     if (isOpen) {
       // Use the exact local URL provided
