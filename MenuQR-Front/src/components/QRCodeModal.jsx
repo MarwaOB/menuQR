@@ -33,8 +33,8 @@ const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
 
   useEffect(() => {
     if (isOpen) {
-      // Generate local URL (LAN)
-      const localUrl = new URL('/menu/current', 'http://10.157.233.225:5173');
+      // Use the exact local URL provided
+      const localUrl = new URL('http://10.157.233.225:5173/menu/current');
       setLocalQrData(localUrl.toString());
 
       // Generate public URL (Online)

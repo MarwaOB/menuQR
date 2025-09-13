@@ -189,7 +189,7 @@
     "download_qr": "Download QR Code",
     "close": "Close",
     "scan_to_view_menu": "Scan to view menu",
-    "local_network": "Local Network (LAN)",
+    "local_network": "Local Network",
     "online_public": "Online (Public)",
     "download_lan_qr": "Download LAN QR",
     "download_online_qr": "Download Online QR",
@@ -226,7 +226,7 @@
   
   "qr_modal": {
     "scan_to_view_menu": "Scan to view menu",
-    "local_network": "Local Network (LAN)",
+    "local_network": "Local Network",
     "online_public": "Online (Public)",
     "download_lan_qr": "Download LAN QR",
     "download_online_qr": "Download Online QR",
