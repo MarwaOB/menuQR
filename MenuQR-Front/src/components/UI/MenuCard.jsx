@@ -27,6 +27,15 @@ const MenuCard = ({ name, date, onSeeMore, onDelete }) => {
       className="flex justify-between items-center bg-white p-4 rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition"
       dir={isRTL ? 'rtl' : 'ltr'}
     >
+      <div className={isRTL ? 'text-right' : 'text-left'}>
+        <p className="text-gray-700 font-semibold">
+          {t('menu')} #{name}
+        </p>
+        <p className="text-sm text-gray-500">
+          {t('created_on')}: {formatDate(date)}
+        </p>
+      </div>
+
       <div className={`flex ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-2`}>
         <MyButton
           onClick={onSeeMore}
@@ -42,15 +51,6 @@ const MenuCard = ({ name, date, onSeeMore, onDelete }) => {
           <FaTrash className="text-xs" />
           {t('delete')}
         </MyButton>
-      </div>
-
-      <div className={isRTL ? 'text-right' : 'text-left'}>
-        <p className="text-gray-700 font-semibold">
-          {t('menu')} #{name}
-        </p>
-        <p className="text-sm text-gray-500">
-          {t('created_on')}: {formatDate(date)}
-        </p>
       </div>
     </div>
   );
