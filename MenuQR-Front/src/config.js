@@ -5,7 +5,7 @@ const config = {
   FRONTEND_BASE_URL: 'http://192.168.1.105:5173',
   
   // Sync settings
-  SYNC_INTERVAL: 100 * 60 * 1000, // 5 minutes
+  SYNC_INTERVAL: 10 * 60 * 1000, // 10 minutes
   MAX_SYNC_RETRIES: 3,
   
   // Offline mode settings
