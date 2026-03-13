@@ -62,6 +62,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [noMenuAvailable, setNoMenuAvailable] = useState(false);
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem('customerCart');
@@ -95,21 +96,41 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     try {
       setLoading(true);
       setError(null);
+      setNoMenuAvailable(false);
 
-      const data = id === 'current' || !id 
+      const data = id === 'current' || !id
         ? await menuAPI.getCurrent()
         : await menuAPI.getFull(id);
 
+      // No data returned — treat as empty menu, not an error
       if (!data) {
-        throw new Error('No data received from server');
+        setNoMenuAvailable(true);
+        processMenuData({ sections: [] });
+        return;
       }
 
       processMenuData(data);
     } catch (err) {
       console.error('Error loading menu:', err);
+
+      const status = err?.response?.status;
+      const message = err?.message || '';
+
+      // 404 or "no menu" messages = empty state, not a crash
+      if (
+        status === 404 ||
+        message.toLowerCase().includes('no menu') ||
+        message.toLowerCase().includes('not found')
+      ) {
+        setNoMenuAvailable(true);
+        processMenuData({ sections: [] });
+        return;
+      }
+
+      // Real network/server error
       setError({
         message: 'Failed to load menu. Please check your connection and try again.',
-        retry: fetchMenuData
+        retry: fetchMenuData,
       });
     } finally {
       setLoading(false);
@@ -130,7 +151,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       if (section.dishes && section.dishes.length > 0) {
         const dishesWithSectionId = section.dishes.map(dish => ({
           ...dish,
-          section_id: section.id
+          section_id: section.id,
         }));
         return [...acc, ...dishesWithSectionId];
       }
@@ -140,9 +161,9 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   };
 
   // Filter dishes by selected section
-  const filteredDishes = selectedCategory === 'All' 
-    ? dishes 
-    : dishes.filter(dish => 
+  const filteredDishes = selectedCategory === 'All'
+    ? dishes
+    : dishes.filter(dish =>
         sections.find(section => section.id === dish.section_id)?.name === selectedCategory
       );
 
@@ -168,7 +189,6 @@ const CustomerMenuPage = ({ id = 'current' }) => {
 
   const updateQuantity = (dishId, newQuantity) => {
     const quantity = parseInt(newQuantity);
-
     if (isNaN(quantity) || quantity <= 0) {
       removeFromCart(dishId);
     } else {
@@ -230,7 +250,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       console.error('Error placing order:', error);
       setError({
         message: error.response?.data?.message || 'Failed to place order. Please try again.',
-        retry: handlePlaceOrder
+        retry: handlePlaceOrder,
       });
       setOrderStatus('error');
     } finally {
@@ -243,13 +263,12 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       let clientResult;
       const menuId = id === 'current' || !id ? (menuData?.id || 1) : id;
 
-      // Create client
       if (clientType === 'dine-in') {
         clientResult = await orderAPI.createInternalClient(parseInt(tableNumber));
       } else if (clientType === 'delivery') {
         clientResult = await orderAPI.createExternalClient({
           address: deliveryAddress,
-          phone_number: phoneNumber
+          phone_number: phoneNumber,
         });
       }
 
@@ -257,7 +276,6 @@ const CustomerMenuPage = ({ id = 'current' }) => {
         throw new Error('Failed to create client');
       }
 
-      // Prepare order data
       const orderData = {
         menu_id: menuId,
         client_id: clientResult.client_id,
@@ -265,12 +283,11 @@ const CustomerMenuPage = ({ id = 'current' }) => {
         order_type: clientType,
         dishes: cart.map(item => ({
           dish_id: item.id,
-          quantity: item.quantity
+          quantity: item.quantity,
         })),
-        ...(clientType === 'delivery' && { delivery_address: deliveryAddress })
+        ...(clientType === 'delivery' && { delivery_address: deliveryAddress }),
       };
 
-      // Submit order
       const response = await orderAPI.create(orderData);
 
       if (!response || !response.order_id) {
@@ -280,7 +297,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       return response;
     } catch (error) {
       console.error('Order placement error:', error);
-      throw error; // Re-throw to be handled by the caller
+      throw error;
     }
   };
 
@@ -292,7 +309,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     setPhoneNumber('');
   };
 
-  // Loading state
+  // ── Loading state ──────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -304,8 +321,8 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     );
   }
 
-  // Error state
-  if (error) {
+  // ── Real error state (network/server failure) ──────────────────────────────
+  if (error && !noMenuAvailable) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full text-center">
@@ -336,6 +353,30 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     );
   }
 
+  // ── No menu available state ────────────────────────────────────────────────
+  if (noMenuAvailable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <div className="text-center max-w-sm">
+          <div className="bg-white rounded-2xl shadow-sm p-10">
+            <FaUtensils className="text-gray-300 text-6xl mx-auto mb-6" />
+            <h2 className="text-2xl font-bold text-gray-700 mb-2">No menu today</h2>
+            <p className="text-gray-400 mb-6">
+              There's no menu available right now. Please check back later or contact the restaurant.
+            </p>
+            <button
+              onClick={fetchMenuData}
+              className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-lg transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main menu view ─────────────────────────────────────────────────────────
   return (
     <ErrorBoundary onRetry={fetchMenuData}>
       <div className="min-h-screen bg-gray-50">
@@ -401,9 +442,19 @@ const CustomerMenuPage = ({ id = 'current' }) => {
             ))}
           </div>
 
-          {filteredDishes.length === 0 && (
+          {/* Empty category state (menu exists but category has no dishes) */}
+          {!noMenuAvailable && filteredDishes.length === 0 && dishes.length > 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500">{t('no_dishes_found') || 'No dishes found in this category.'}</p>
+            </div>
+          )}
+
+          {/* Menu exists but has no dishes at all */}
+          {!noMenuAvailable && dishes.length === 0 && (
+            <div className="text-center py-20">
+              <FaUtensils className="text-gray-300 text-6xl mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-500 mb-2">Menu is empty</h2>
+              <p className="text-gray-400">No dishes have been added to today's menu yet.</p>
             </div>
           )}
         </div>
