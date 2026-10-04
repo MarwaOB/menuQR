@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FaShoppingCart, FaCheck, FaTimes, FaUtensils, FaTruck, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
+import { AlertTriangle, Check, Loader2, SearchX, ShoppingBag, X } from 'lucide-react';
 import { menuAPI, orderAPI } from '../utils/api';
-import DishCard from '../components/UI/DishCard';
-import CategoryFilterBar from '../components/UI/CategoryFilterBar';
-import MyButton from '../components/UI/Button';
+import useCart from '../hooks/useCart';
+import OrderHeader from '../components/order/OrderHeader';
+import CategoryNav from '../components/order/CategoryNav';
+import OrderDishCard from '../components/order/OrderDishCard';
+import CartPanel from '../components/order/CartPanel';
+import { EmptyMenuState, LoadErrorState, MenuSkeleton, NoMenuState } from '../components/order/OrderStates';
+import { formatMenuDate, formatPrice } from '../lib/format';
+import site from '../data/site';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -31,17 +37,14 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full text-center">
-            <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-800 mb-2">Something went wrong</h2>
-            <p className="text-red-600 mb-4">
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </p>
-            <button
-              onClick={this.handleRetry}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            >
+        <div className="flex min-h-svh items-center justify-center bg-cream p-6 text-ink">
+          <div className="max-w-md text-center">
+            <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-paprika-soft text-paprika">
+              <AlertTriangle size={30} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+            <h2 className="mt-6 font-display text-4xl font-light">Something went wrong</h2>
+            <p className="mt-3 text-ink-soft">{this.state.error?.message || 'An unexpected error occurred'}</p>
+            <button onClick={this.handleRetry} className="btn btn-primary mt-8">
               Try Again
             </button>
           </div>
@@ -53,43 +56,48 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+const ORDER_TYPES = ['dine-in', 'delivery'];
+
 const CustomerMenuPage = ({ id = 'current' }) => {
   const { t, i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
+  const [searchParams] = useSearchParams();
 
   const [sections, setSections] = useState([]);
-  const [dishes, setDishes] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [noMenuAvailable, setNoMenuAvailable] = useState(false);
-  const [cart, setCart] = useState(() => {
-    try {
-      const savedCart = localStorage.getItem('customerCart');
-      return savedCart ? JSON.parse(savedCart) : [];
-    } catch (e) {
-      console.error('Error parsing cart from localStorage:', e);
-      return [];
-    }
-  });
+  const [menuData, setMenuData] = useState(null);
+
+  const { cart, addToCart, updateQuantity, clearCart, total, count, quantities } = useCart();
   const [showCart, setShowCart] = useState(false);
+  const [step, setStep] = useState('cart'); // 'cart' | 'details' | 'success'
   const [orderStatus, setOrderStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-  // Client type and details
-  const [clientType, setClientType] = useState(null);
-  const [tableNumber, setTableNumber] = useState('');
+  // Client type and details (can be preset from the URL: ?type=delivery, ?table=12)
+  const [clientType, setClientType] = useState(() => {
+    const type = searchParams.get('type');
+    if (ORDER_TYPES.includes(type)) return type;
+    return searchParams.get('table') ? 'dine-in' : null;
+  });
+  const [tableNumber, setTableNumber] = useState(() => searchParams.get('table') || '');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  const [menuData, setMenuData] = useState(null);
+  // Browsing
+  const [query, setQuery] = useState('');
+  const [activeSection, setActiveSection] = useState(null);
+  const [highlightId, setHighlightId] = useState(null);
+  const [bump, setBump] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const headerRef = useRef(null);
+  const spyLocked = useRef(false);
+  const deepLinked = useRef(false);
 
-  const categories = ['All', ...sections.map(section => section.name)];
-
-  // Save cart to localStorage
   useEffect(() => {
-    localStorage.setItem('customerCart', JSON.stringify(cart));
-  }, [cart]);
+    document.title = `${t('order.title')} — ${site.name}`;
+  }, [t]);
 
   // Load menu data
   const fetchMenuData = async () => {
@@ -98,9 +106,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       setError(null);
       setNoMenuAvailable(false);
 
-      const data = id === 'current' || !id
-        ? await menuAPI.getCurrent()
-        : await menuAPI.getFull(id);
+      const data = id === 'current' || !id ? await menuAPI.getCurrent() : await menuAPI.getFull(id);
 
       // No data returned — treat as empty menu, not an error
       if (!data) {
@@ -117,11 +123,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
       const message = err?.message || '';
 
       // 404 or "no menu" messages = empty state, not a crash
-      if (
-        status === 404 ||
-        message.toLowerCase().includes('no menu') ||
-        message.toLowerCase().includes('not found')
-      ) {
+      if (status === 404 || message.toLowerCase().includes('no menu') || message.toLowerCase().includes('not found')) {
         setNoMenuAvailable(true);
         processMenuData({ sections: [] });
         return;
@@ -129,7 +131,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
 
       // Real network/server error
       setError({
-        message: 'Failed to load menu. Please check your connection and try again.',
+        message: t('order.error_load'),
         retry: fetchMenuData,
       });
     } finally {
@@ -144,89 +146,118 @@ const CustomerMenuPage = ({ id = 'current' }) => {
 
   const processMenuData = (data) => {
     setMenuData(data);
-    const sectionsData = data.sections || [];
+    const sectionsData = (data.sections || []).map((section) => ({
+      ...section,
+      dishes: (section.dishes || []).map((dish) => ({
+        ...dish,
+        section_id: section.id,
+        section_name: section.name,
+      })),
+    }));
     setSections(sectionsData);
-
-    const allDishes = sectionsData.reduce((acc, section) => {
-      if (section.dishes && section.dishes.length > 0) {
-        const dishesWithSectionId = section.dishes.map(dish => ({
-          ...dish,
-          section_id: section.id,
-        }));
-        return [...acc, ...dishesWithSectionId];
-      }
-      return acc;
-    }, []);
-    setDishes(allDishes);
   };
 
-  // Filter dishes by selected section
-  const filteredDishes = selectedCategory === 'All'
-    ? dishes
-    : dishes.filter(dish =>
-        sections.find(section => section.id === dish.section_id)?.name === selectedCategory
-      );
+  // Sections with dishes, narrowed by the search query.
+  const visibleSections = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return sections
+      .map((section) => ({
+        ...section,
+        dishes: q
+          ? section.dishes.filter(
+              (d) => d.name?.toLowerCase().includes(q) || d.description?.toLowerCase().includes(q) || section.name?.toLowerCase().includes(q)
+            )
+          : section.dishes,
+      }))
+      .filter((section) => section.dishes.length > 0);
+  }, [sections, query]);
 
-  // Cart functions
-  const addToCart = (dish) => {
-    setCart(prev => {
-      const existingItem = prev.find(item => item.id === dish.id);
-      if (existingItem) {
-        const currentQuantity = parseInt(existingItem.quantity) || 0;
-        return prev.map(item =>
-          item.id === dish.id
-            ? { ...item, quantity: currentQuantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { ...dish, quantity: 1 }];
+  const totalDishes = useMemo(() => sections.reduce((n, s) => n + s.dishes.length, 0), [sections]);
+
+  // Sticky header height → scroll offsets for sections and the scroll-spy.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(() => setOffset(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, error, noMenuAvailable]);
+
+  // Scroll-spy: the section under the header is the active category.
+  useEffect(() => {
+    if (!visibleSections.length) return undefined;
+    setActiveSection((current) => (visibleSections.some((s) => s.id === current) ? current : visibleSections[0].id));
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (spyLocked.current) return;
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length) setActiveSection(Number(visible[0].target.dataset.section));
+      },
+      { rootMargin: `-${offset + 8}px 0px -60% 0px` }
+    );
+    visibleSections.forEach((s) => {
+      const el = document.getElementById(`section-${s.id}`);
+      if (el) io.observe(el);
     });
+    return () => io.disconnect();
+  }, [visibleSections, offset]);
+
+  const selectSection = useCallback((sectionId) => {
+    setActiveSection(sectionId);
+    spyLocked.current = true;
+    const el = document.getElementById(`section-${sectionId}`);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    window.setTimeout(() => (spyLocked.current = false), 900);
+  }, []);
+
+  // Deep link from the home page: /menu/order?dish=ID scrolls to and highlights the dish.
+  useEffect(() => {
+    const dishId = searchParams.get('dish');
+    if (!dishId || deepLinked.current || !sections.length) return undefined;
+    deepLinked.current = true;
+    const el = document.getElementById(`dish-${dishId}`);
+    if (!el) return undefined;
+    el.scrollIntoView({ block: 'center' });
+    setHighlightId(Number(dishId));
+    const timer = window.setTimeout(() => setHighlightId(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [sections, searchParams]);
+
+  // Cart actions
+  const handleAdd = useCallback(
+    (dish) => {
+      addToCart(dish);
+      setBump((b) => b + 1);
+    },
+    [addToCart]
+  );
+
+  const openCart = () => {
+    if (step === 'success') setStep('cart');
+    setFormError(null);
+    setShowCart(true);
   };
 
-  const removeFromCart = (dishId) => {
-    setCart(prev => prev.filter(item => item.id !== dishId));
-  };
-
-  const updateQuantity = (dishId, newQuantity) => {
-    const quantity = parseInt(newQuantity);
-    if (isNaN(quantity) || quantity <= 0) {
-      removeFromCart(dishId);
-    } else {
-      setCart(prev =>
-        prev.map(item =>
-          item.id === dishId ? { ...item, quantity } : item
-        )
-      );
-    }
-  };
-
-  const getCartTotal = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-
-  const getCartItemCount = () => {
-    return cart.reduce((total, item) => total + item.quantity, 0);
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    localStorage.removeItem('customerCart');
-  };
+  const closeCart = useCallback(() => {
+    setShowCart(false);
+    setStep((s) => (s === 'success' ? 'cart' : s));
+  }, []);
 
   // Order placement
   const validateOrder = () => {
     if (cart.length === 0) {
-      setError({ message: 'Your cart is empty' });
+      setFormError(t('order.cart_empty_err'));
       return false;
     }
 
-    if (clientType === 'dine-in' && !tableNumber.trim()) {
-      setError({ message: 'Please enter your table number' });
+    if (clientType === 'dine-in' && !String(tableNumber).trim()) {
+      setFormError(t('order.table_required'));
       return false;
     }
 
     if (clientType === 'delivery' && !deliveryAddress.trim()) {
-      setError({ message: 'Please enter your delivery address' });
+      setFormError(t('order.address_required'));
       return false;
     }
 
@@ -239,20 +270,19 @@ const CustomerMenuPage = ({ id = 'current' }) => {
     try {
       setIsSubmitting(true);
       setOrderStatus('placing');
-      setError(null);
+      setFormError(null);
 
       await placeOrder();
 
       setOrderStatus('success');
       clearOrderForm();
+      setStep('success');
       setTimeout(() => setOrderStatus(null), 3000);
     } catch (error) {
       console.error('Error placing order:', error);
-      setError({
-        message: error.response?.data?.message || 'Failed to place order. Please try again.',
-        retry: handlePlaceOrder,
-      });
+      setFormError(error.response?.data?.message || t('order.order_failed'));
       setOrderStatus('error');
+      setTimeout(() => setOrderStatus(null), 4000);
     } finally {
       setIsSubmitting(false);
     }
@@ -261,7 +291,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   const placeOrder = async () => {
     try {
       let clientResult;
-      const menuId = id === 'current' || !id ? (menuData?.id || 1) : id;
+      const menuId = id === 'current' || !id ? menuData?.id || 1 : id;
 
       if (clientType === 'dine-in') {
         clientResult = await orderAPI.createInternalClient(parseInt(tableNumber));
@@ -281,7 +311,7 @@ const CustomerMenuPage = ({ id = 'current' }) => {
         client_id: clientResult.client_id,
         client_type: clientType === 'dine-in' ? 'internal' : 'external',
         order_type: clientType,
-        dishes: cart.map(item => ({
+        dishes: cart.map((item) => ({
           dish_id: item.id,
           quantity: item.quantity,
         })),
@@ -302,21 +332,22 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   };
 
   const clearOrderForm = () => {
-    setCart([]);
+    clearCart();
     setClientType(null);
     setTableNumber('');
     setDeliveryAddress('');
     setPhoneNumber('');
   };
 
+  const menuDate = formatMenuDate(menuData?.date, i18n.language);
+  const headerProps = { count, total, onOpenCart: openCart, bump, headerRef };
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">{t('loading') || 'Loading...'}</p>
-        </div>
+      <div className="min-h-svh bg-cream text-ink">
+        <OrderHeader {...headerProps} showSearch={false} />
+        <MenuSkeleton />
       </div>
     );
   }
@@ -324,31 +355,19 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   // ── Real error state (network/server failure) ──────────────────────────────
   if (error && !noMenuAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full text-center">
-          <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-red-800 mb-2">Something went wrong</h2>
-          <p className="text-red-600 mb-4">{error.message}</p>
-          {error.retry && (
-            <button
-              onClick={() => {
-                setError(null);
-                error.retry();
-              }}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <FaSpinner className="animate-spin inline-block mr-2" />
-                  Loading...
-                </>
-              ) : (
-                'Try Again'
-              )}
-            </button>
-          )}
-        </div>
+      <div className="min-h-svh bg-cream text-ink">
+        <OrderHeader {...headerProps} showSearch={false} />
+        <LoadErrorState
+          message={error.message}
+          retrying={loading}
+          onRetry={
+            error.retry &&
+            (() => {
+              setError(null);
+              error.retry();
+            })
+          }
+        />
       </div>
     );
   }
@@ -356,22 +375,9 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   // ── No menu available state ────────────────────────────────────────────────
   if (noMenuAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-        <div className="text-center max-w-sm">
-          <div className="bg-white rounded-2xl shadow-sm p-10">
-            <FaUtensils className="text-gray-300 text-6xl mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-gray-700 mb-2">No menu today</h2>
-            <p className="text-gray-400 mb-6">
-              There's no menu available right now. Please check back later or contact the restaurant.
-            </p>
-            <button
-              onClick={fetchMenuData}
-              className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-lg transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
+      <div className="min-h-svh bg-cream text-ink">
+        <OrderHeader {...headerProps} showSearch={false} />
+        <NoMenuState onRefresh={fetchMenuData} />
       </div>
     );
   }
@@ -379,269 +385,160 @@ const CustomerMenuPage = ({ id = 'current' }) => {
   // ── Main menu view ─────────────────────────────────────────────────────────
   return (
     <ErrorBoundary onRetry={fetchMenuData}>
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-end">
-              <button
-                onClick={() => setShowCart(true)}
-                className="relative bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-              >
-                <FaShoppingCart />
-                <span>{t('customer.cart')}</span>
-                {getCartItemCount() > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {getCartItemCount()}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-svh bg-cream text-ink">
+        <OrderHeader {...headerProps} query={query} onQuery={setQuery}>
+          {!query && <CategoryNav sections={visibleSections} active={activeSection} onSelect={selectSection} />}
+        </OrderHeader>
 
-        {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          {/* Menu Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-red-500 mb-2">
-              {t('customer.restaurant_menu')}
-            </h1>
-            <p className="text-gray-600">
-              {t('customer.fresh_menu')}
+        <main className="mx-auto max-w-6xl px-4 pb-32 sm:px-6">
+          {/* Title */}
+          <div className="flex flex-col gap-2 pb-8 pt-10 sm:flex-row sm:items-end sm:justify-between sm:pt-14">
+            <div>
+              <p className="eyebrow mb-3 text-paprika">{menuData?.name || t('customer.restaurant_menu')}</p>
+              <h1 className="font-display text-display-md font-light">{t('order.title')}</h1>
+            </div>
+            <p className="text-sm text-muted">
+              {menuDate && <span className="capitalize">{menuDate}</span>}
+              {menuDate && totalDishes > 0 && ' · '}
+              {totalDishes > 0 && t('order.dishes', { n: totalDishes })}
             </p>
           </div>
 
-          {/* Category Filters */}
-          <CategoryFilterBar
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onChange={setSelectedCategory}
-          />
+          {/* Menu exists but has no dishes at all */}
+          {totalDishes === 0 && <EmptyMenuState />}
 
-          {/* Dishes Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-            {filteredDishes.map((dish) => (
-              <div key={dish.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                <DishCard
-                  image={dish.images && dish.images.length > 0 ? dish.images[0] : null}
-                  name={dish.name}
-                  description={dish.description}
-                  price={dish.price}
-                  showActions={false}
-                />
-                <div className="p-4 pt-0">
-                  <MyButton
-                    onClick={() => addToCart(dish)}
-                    className="w-full bg-yellow-400 hover:bg-yellow-500 text-black py-2 rounded-lg transition-colors"
-                  >
-                    {t('customer.add_to_cart')}
-                  </MyButton>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Empty category state (menu exists but category has no dishes) */}
-          {!noMenuAvailable && filteredDishes.length === 0 && dishes.length > 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">{t('no_dishes_found') || 'No dishes found in this category.'}</p>
+          {/* Search with no results */}
+          {totalDishes > 0 && visibleSections.length === 0 && (
+            <div className="py-20 text-center" role="status">
+              <SearchX size={36} strokeWidth={1.25} className="mx-auto text-muted" aria-hidden="true" />
+              <h2 className="mt-5 font-display text-3xl font-light">{t('order.no_results', { query })}</h2>
+              <p className="mt-2 text-ink-soft">{t('order.no_results_hint')}</p>
+              <button type="button" onClick={() => setQuery('')} className="btn btn-ghost mt-6">
+                {t('order.clear_search')}
+              </button>
             </div>
           )}
 
-          {/* Menu exists but has no dishes at all */}
-          {!noMenuAvailable && dishes.length === 0 && (
-            <div className="text-center py-20">
-              <FaUtensils className="text-gray-300 text-6xl mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-500 mb-2">Menu is empty</h2>
-              <p className="text-gray-400">No dishes have been added to today's menu yet.</p>
+          {/* Sections */}
+          <div className="space-y-14">
+            {visibleSections.map((section) => (
+              <section
+                key={section.id}
+                id={`section-${section.id}`}
+                data-section={section.id}
+                aria-labelledby={`section-title-${section.id}`}
+                style={{ scrollMarginTop: offset + 12 }}
+              >
+                <div className="mb-5 flex items-baseline justify-between gap-4 border-b border-line pb-3">
+                  <h2 id={`section-title-${section.id}`} className="font-display text-3xl" dir="auto">
+                    {section.name}
+                  </h2>
+                  <span className="text-sm text-muted tabular-nums">{t('order.dishes', { n: section.dishes.length })}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+                  {section.dishes.map((dish) => (
+                    <OrderDishCard
+                      key={dish.id}
+                      dish={dish}
+                      quantity={quantities[dish.id] || 0}
+                      onAdd={handleAdd}
+                      onQuantity={updateQuantity}
+                      highlighted={highlightId === dish.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </main>
+
+        {/* Mobile / tablet: floating order bar */}
+        <div
+          className={`fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-[var(--ease-out-expo)] lg:hidden ${
+            count > 0 && !showCart ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-full opacity-0'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={openCart}
+            tabIndex={count > 0 && !showCart ? 0 : -1}
+            className="flex h-14 w-full items-center justify-between rounded-full bg-ink ps-2 pe-6 text-paper shadow-[0_20px_40px_-18px_rgb(27_22_17/0.7)]"
+          >
+            <span className="flex items-center gap-3">
+              <span key={bump} className="flex h-10 w-10 items-center justify-center rounded-full bg-paprika text-sm font-semibold motion-safe:animate-[fadeIn_0.4s_var(--ease-out-expo)]">
+                {count}
+              </span>
+              <span className="font-semibold">{t('order.view_order')}</span>
+            </span>
+            <span className="font-semibold tabular-nums">
+              {formatPrice(total, i18n.language)} {t('currency')}
+            </span>
+          </button>
+        </div>
+
+        <CartPanel
+          open={showCart}
+          onClose={closeCart}
+          step={step}
+          setStep={(s) => {
+            setFormError(null);
+            setStep(s);
+          }}
+          cart={cart}
+          count={count}
+          total={total}
+          onQuantity={updateQuantity}
+          clientType={clientType}
+          setClientType={(type) => {
+            setFormError(null);
+            setClientType(type);
+          }}
+          tableNumber={tableNumber}
+          setTableNumber={setTableNumber}
+          deliveryAddress={deliveryAddress}
+          setDeliveryAddress={setDeliveryAddress}
+          phoneNumber={phoneNumber}
+          setPhoneNumber={setPhoneNumber}
+          onPlaceOrder={handlePlaceOrder}
+          isSubmitting={isSubmitting}
+          formError={formError}
+        />
+
+        {/* Order Status Messages */}
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-[70] flex justify-center px-4" role="status" aria-live="polite">
+          {orderStatus && (
+            <div
+              className={`flex items-center gap-2.5 rounded-full px-5 py-3 text-sm font-medium shadow-xl motion-safe:animate-[fadeIn_0.4s_var(--ease-out-expo)] ${
+                orderStatus === 'success' ? 'bg-olive text-paper' : orderStatus === 'error' ? 'bg-paprika text-paper' : 'bg-ink text-paper'
+              }`}
+            >
+              {orderStatus === 'success' && <Check size={16} aria-hidden="true" />}
+              {orderStatus === 'error' && <X size={16} aria-hidden="true" />}
+              {orderStatus === 'placing' && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+              <span>
+                {orderStatus === 'success' && t('customer.order_placed_success')}
+                {orderStatus === 'error' && t('customer.order_error')}
+                {orderStatus === 'placing' && t('order.placing')}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Cart Modal */}
-        {showCart && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] flex flex-col">
-              <div className="p-6 border-b flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold">{t('customer.your_cart')}</h3>
-                  <button
-                    onClick={() => setShowCart(false)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6">
-                {cart.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">{t('customer.cart_empty')}</p>
-                ) : (
-                  <div className="space-y-4">
-                    {cart.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <h4 className="font-medium">{item.name}</h4>
-                          <p className="text-sm text-gray-600">{item.price} {t('currency')}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.id, (parseInt(item.quantity) || 0) - 1)}
-                            className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center">{item.quantity || 0}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, (parseInt(item.quantity) || 0) + 1)}
-                            className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {cart.length > 0 && (
-                <div className="p-6 border-t bg-gray-50 flex-shrink-0">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-semibold">{t('customer.total')}:</span>
-                    <span className="font-bold text-xl">{getCartTotal()} {t('currency')}</span>
-                  </div>
-
-                  {/* Client Type Selection */}
-                  {!clientType && (
-                    <div className="mb-6">
-                      <h4 className="font-semibold mb-3 text-gray-800">{t('customer.how_to_order')}</h4>
-                      <div className="grid grid-cols-1 gap-3">
-                        <button
-                          onClick={() => setClientType('dine-in')}
-                          className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <FaUtensils className="text-blue-500" />
-                          <div className="text-left">
-                            <div className="font-medium">{t('customer.dine_in')}</div>
-                            <div className="text-sm text-gray-600">{t('customer.dine_in_desc')}</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => setClientType('delivery')}
-                          className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <FaTruck className="text-green-500" />
-                          <div className="text-left">
-                            <div className="font-medium">{t('customer.delivery')}</div>
-                            <div className="text-sm text-gray-600">{t('customer.delivery_desc')}</div>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Dine In Form */}
-                  {clientType === 'dine-in' && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('customer.table_number')}</label>
-                      <input
-                        type="number"
-                        placeholder={t('customer.enter_table_number')}
-                        value={tableNumber}
-                        onChange={(e) => setTableNumber(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                      />
-                    </div>
-                  )}
-
-                  {/* Delivery Form */}
-                  {clientType === 'delivery' && (
-                    <div className="space-y-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('customer.delivery_address')} *</label>
-                        <textarea
-                          placeholder={t('customer.delivery_address_placeholder')}
-                          value={deliveryAddress}
-                          onChange={(e) => setDeliveryAddress(e.target.value)}
-                          rows="3"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('customer.phone_number')}</label>
-                        <input
-                          type="tel"
-                          placeholder={t('customer.phone_number_placeholder')}
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="space-y-2">
-                    {clientType && (
-                      <button
-                        onClick={() => setClientType(null)}
-                        className="w-full px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                      >
-                        {t('customer.change_order_type')}
-                      </button>
-                    )}
-
-                    <MyButton
-                      onClick={handlePlaceOrder}
-                      disabled={
-                        (clientType === 'dine-in' && !tableNumber.trim()) ||
-                        (clientType === 'delivery' && !deliveryAddress.trim()) ||
-                        !clientType
-                      }
-                      className="w-full bg-yellow-400 hover:bg-yellow-500 text-black py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <FaSpinner className="animate-spin mr-2" />
-                          {t('customer.placing_order') || 'Placing Order...'}
-                        </>
-                      ) : (
-                        t('customer.place_order')
-                      )}
-                    </MyButton>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Order Status Messages */}
-        {orderStatus && (
-          <div className="fixed top-4 right-4 z-50">
-            <div className={`p-4 rounded-lg shadow-lg ${
-              orderStatus === 'success' ? 'bg-green-500 text-white' :
-              orderStatus === 'error' ? 'bg-red-500 text-white' :
-              orderStatus === 'stored_locally' ? 'bg-yellow-500 text-black' :
-              'bg-blue-500 text-white'
-            }`}>
-              <div className="flex items-center gap-2">
-                {orderStatus === 'success' && <FaCheck />}
-                {orderStatus === 'error' && <FaTimes />}
-                {orderStatus === 'placing' && <FaSpinner className="animate-spin" />}
-                <span>
-                  {orderStatus === 'success' && t('customer.order_placed_success')}
-                  {orderStatus === 'error' && t('customer.order_error')}
-                  {orderStatus === 'stored_locally' && 'Order stored locally - staff will be notified'}
-                  {orderStatus === 'placing' && (t('customer.placing_order') || 'Placing your order...')}
-                </span>
-              </div>
-            </div>
-          </div>
+        {/* Desktop: quick access to the order when the cart has items */}
+        {count > 0 && !showCart && (
+          <button
+            type="button"
+            onClick={openCart}
+            className="fixed bottom-8 z-30 hidden h-14 items-center gap-3 rounded-full bg-ink ps-3 pe-6 text-paper shadow-[0_20px_40px_-18px_rgb(27_22_17/0.7)] transition-colors hover:bg-paprika lg:flex ltr:right-8 rtl:left-8"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-paper/15">
+              <ShoppingBag size={17} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <span className="font-semibold">{t('order.view_order')}</span>
+            <span className="tabular-nums text-paper/70">
+              {formatPrice(total, i18n.language)} {t('currency')}
+            </span>
+          </button>
         )}
       </div>
     </ErrorBoundary>

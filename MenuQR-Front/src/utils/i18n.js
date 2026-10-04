@@ -21,4 +21,13 @@ i18n
     },
   });
 
+// Keep <html dir/lang> in sync with the active language (also on first load).
+const applyDirection = (lng) => {
+  const lang = (lng || 'en').split('-')[0];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+};
+applyDirection(i18n.resolvedLanguage || i18n.language);
+i18n.on('languageChanged', applyDirection);
+
 export default i18n;

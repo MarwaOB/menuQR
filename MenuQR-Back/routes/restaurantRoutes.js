@@ -38,7 +38,11 @@ router.get('/profile', authenticateToken, async (req, res) => {
   
   
   try {
-    const { rows } = await db.query('SELECT id, name, email, phone_number, address, description, created_at FROM Restaurant');
+    // The restaurant that owns this token (not simply the first row in the table).
+    const { rows } = await db.query(
+      'SELECT id, name, email, phone_number, address, description, created_at FROM Restaurant WHERE id = $1',
+      [req.user.restaurant_id]
+    );
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
@@ -56,10 +60,12 @@ router.post('/profile/modify', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/profile/modify - Request received');
   console.log('Request body:', req.body);
   
-  const { restaurant_id, name, email, phone_number, address, description } = req.body;
+  const { name, email, phone_number, address, description } = req.body;
+  // Only ever update the authenticated restaurant, whatever ID the body claims.
+  const restaurant_id = req.user.restaurant_id;
 
-  if (!restaurant_id) {
-    return res.status(400).json({ error: 'Restaurant ID is required' });
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
   }
 
   try {
@@ -75,10 +81,11 @@ router.post('/profile/modify', authenticateToken, async (req, res) => {
 
 // Upload restaurant logo
 router.post('/logo/upload', authenticateToken, upload.single('logo'), async (req, res) => {
-  const { restaurant_id } = req.body;
-  
-  if (!restaurant_id || !req.file) {
-    return res.status(400).json({ error: 'Restaurant ID and logo file are required' });
+  // Always the authenticated restaurant.
+  const restaurant_id = req.user.restaurant_id;
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'Logo file is required' });
   }
 
   try {
@@ -159,16 +166,13 @@ router.get('/:id/logo', authenticateToken, async (req, res) => {
 // Export menu data (for backup/sharing)
 router.get('/export/:menu_id', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurant/export/:menu_id - Request received');
-  
+
   const { menu_id } = req.params;
-  
+
   try {
     // Get complete menu data (no join, since Menu has no restaurant_id)
-    const menuSql = `
-      SELECT * FROM Menu WHERE id = ?
-    `;
-    const [menuRows] = await db.query(menuSql, [menu_id]);
-    
+    const { rows: menuRows } = await db.query('SELECT * FROM Menu WHERE id = $1', [menu_id]);
+
     if (menuRows.length === 0) {
       return res.status(404).json({ error: 'Menu not found' });
     }
@@ -177,10 +181,10 @@ router.get('/export/:menu_id', authenticateToken, async (req, res) => {
       SELECT d.*, s.name as section_name
       FROM Dish d
       JOIN Section s ON d.section_id = s.id
-      WHERE d.menu_id = ?
+      WHERE d.menu_id = $1
       ORDER BY s.name, d.name
     `;
-    const [dishesRows] = await db.query(dishesSql, [menu_id]);
+    const { rows: dishesRows } = await db.query(dishesSql, [menu_id]);
 
     const exportData = {
       menu: menuRows[0],
@@ -199,60 +203,48 @@ router.get('/export/:menu_id', authenticateToken, async (req, res) => {
 // Import menu data
 router.post('/import', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/import - Request received');
-  
+
   const { menu_data, new_date, new_name } = req.body;
 
-  if (!menu_data || !new_date) {
-    return res.status(400).json({ error: 'Menu data and new date are required' });
+  if (!menu_data || !new_date || !Array.isArray(menu_data.dishes)) {
+    return res.status(400).json({ error: 'Menu data (with dishes) and new date are required' });
   }
 
   try {
-    await db.query('START TRANSACTION');
+    const new_menu_id = await db.withTransaction(async (client) => {
+      // Create new menu
+      const menuName = new_name || menu_data.menu?.name || 'Imported menu';
+      const { rows: [menu] } = await client.query(
+        'INSERT INTO Menu (name, date) VALUES ($1, $2) RETURNING id',
+        [menuName, new_date]
+      );
 
-    // Create new menu
-    const menuName = new_name || menu_data.menu.name;
-    const newMenuResult = await db.query(
-      'INSERT INTO Menu (name, date) VALUES (?, ?)',
-      [menuName, new_date]
-    );
-    const new_menu_id = newMenuResult[0].insertId;
-
-    // --- Import sections if present and remap section_ids ---
-    let sectionIdMap = {};
-    if (menu_data.sections && Array.isArray(menu_data.sections) && menu_data.sections.length > 0) {
-      for (const section of menu_data.sections) {
-        // Check if section with same name exists
-        const [existingSections] = await db.query(
-          'SELECT id FROM Section WHERE name = ?',
-          [section.name]
-        );
-        let sectionId;
-        if (existingSections.length > 0) {
-          sectionId = existingSections[0].id;
-        } else {
-          const [sectionResult] = await db.query(
-            'INSERT INTO Section (name) VALUES (?)',
+      // --- Import sections if present and remap section_ids ---
+      const sectionIdMap = {};
+      if (Array.isArray(menu_data.sections)) {
+        for (const section of menu_data.sections) {
+          const { rows: [row] } = await client.query(
+            `INSERT INTO Section (name) VALUES ($1)
+             ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id`,
             [section.name]
           );
-          sectionId = sectionResult.insertId;
+          sectionIdMap[section.id] = row.id;
         }
-        sectionIdMap[section.id] = sectionId;
       }
-    }
 
-    // Import dishes, remapping section_id if needed
-    for (const dish of menu_data.dishes) {
-      let section_id = dish.section_id;
-      if (Object.keys(sectionIdMap).length > 0 && sectionIdMap[dish.section_id]) {
-        section_id = sectionIdMap[dish.section_id];
+      // Import dishes, remapping section_id if needed
+      for (const dish of menu_data.dishes) {
+        const section_id = sectionIdMap[dish.section_id] || dish.section_id;
+        await client.query(
+          'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5)',
+          [dish.name, dish.description, dish.price, section_id, menu.id]
+        );
       }
-      await db.query(
-        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
-        [dish.name, dish.description, dish.price, section_id, new_menu_id]
-      );
-    }
 
-    await db.query('COMMIT');
+      return menu.id;
+    });
+
     res.status(201).json({
       message: 'Menu imported successfully',
       new_menu_id,
@@ -260,7 +252,6 @@ router.post('/import', authenticateToken, async (req, res) => {
       sections_imported: menu_data.sections ? menu_data.sections.length : 0
     });
   } catch (err) {
-    await db.query('ROLLBACK');
     console.error('Error in POST /api/restaurant/import:', err);
     res.status(500).json({ error: 'Failed to import menu', details: err.message });
   }
@@ -275,27 +266,28 @@ router.post('/import', authenticateToken, async (req, res) => {
 router.get('/inventory/alerts', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurant/inventory/alerts - Request received');
 
-  const { days = 7 } = req.query;
+  const days = Math.max(1, parseInt(req.query.days, 10) || 7);
 
   try {
     const sql = `
-      SELECT 
-        d.id, d.name, d.description, s.name as section_name,
-        COALESCE(SUM(oi.quantity), 0) as times_ordered,
-        MAX(o.created_at) as last_ordered,
-        DATEDIFF(NOW(), MAX(o.created_at)) as days_since_last_order
-      FROM Dish d
-      JOIN Section s ON d.section_id = s.id
-      JOIN Menu m ON d.menu_id = m.id
-      LEFT JOIN OrderItem oi ON d.id = oi.dish_id
-      LEFT JOIN \`Order\` o ON oi.order_id = o.id AND o.status = 'served'
-        AND o.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-      GROUP BY d.id
-      HAVING times_ordered < 3 OR days_since_last_order > ? OR last_ordered IS NULL
-      ORDER BY times_ordered ASC, days_since_last_order DESC
+      SELECT * FROM (
+        SELECT
+          d.id, d.name, d.description, s.name as section_name,
+          COALESCE(SUM(oi.quantity), 0) as times_ordered,
+          MAX(o.created_at) as last_ordered,
+          EXTRACT(DAY FROM NOW() - MAX(o.created_at))::int as days_since_last_order
+        FROM Dish d
+        JOIN Section s ON d.section_id = s.id
+        LEFT JOIN OrderItem oi ON d.id = oi.dish_id
+        LEFT JOIN OrderTable o ON oi.order_id = o.id AND o.status = 'served'
+          AND o.created_at >= NOW() - make_interval(days => $1)
+        GROUP BY d.id, s.name
+      ) stats
+      WHERE times_ordered < 3 OR days_since_last_order > $1 OR last_ordered IS NULL
+      ORDER BY times_ordered ASC, days_since_last_order DESC NULLS FIRST
     `;
 
-    const [rows] = await db.query(sql, [days, days]);
+    const { rows } = await db.query(sql, [days]);
 
     res.status(200).json({
       message: `Dishes with low orders in the last ${days} days`,
@@ -314,28 +306,23 @@ router.get('/inventory/alerts', authenticateToken, async (req, res) => {
 // Backup restaurant data
 router.get('/backup', authenticateToken, async (req, res) => {
   console.log('GET /api/restaurant/backup - Request received');
-    
+
   try {
-    // Get all restaurant data 
-    const restaurantSql = 'SELECT * FROM Restaurant LIMIT 1';
-    const menusSql = 'SELECT * FROM Menu';
-    const dishesSql = `
+    const { rows: restaurant } = await db.query(
+      'SELECT id, name, email, phone_number, address, description, created_at FROM Restaurant WHERE id = $1',
+      [req.user.restaurant_id]
+    );
+    const { rows: menus } = await db.query('SELECT * FROM Menu');
+    const { rows: dishes } = await db.query(`
       SELECT d.*, s.name as section_name
       FROM Dish d
       JOIN Section s ON d.section_id = s.id
-      JOIN Menu m ON d.menu_id = m.id
-    `;
-    const ordersSql = `
+    `);
+    const { rows: orders } = await db.query(`
       SELECT o.*, oi.dish_id, oi.quantity
-      FROM \`Order\` o
-      JOIN Menu m ON o.menu_id = m.id
+      FROM OrderTable o
       JOIN OrderItem oi ON o.id = oi.order_id
-    `;
-
-    const [restaurant] = await db.query(restaurantSql);
-    const [menus] = await db.query(menusSql);
-    const [dishes] = await db.query(dishesSql);
-    const [orders] = await db.query(ordersSql);
+    `);
 
     const backupData = {
       restaurant: restaurant[0],
@@ -358,32 +345,30 @@ router.post('/maintenance/cleanup', authenticateToken, async (req, res) => {
   console.log('POST /api/restaurant/maintenance/cleanup - Request received');
   console.log('Request body:', req.body);
 
-  const { days_old = 90 } = req.body;
+  const days_old = Math.max(1, parseInt(req.body.days_old ?? req.body.days, 10) || 90);
 
   try {
-    await db.query('START TRANSACTION');
+    const ordersDeleted = await db.withTransaction(async (client) => {
+      // Delete old completed orders (order items cascade)
+      const result = await client.query(
+        `DELETE FROM OrderTable
+         WHERE status IN ('served', 'cancelled')
+           AND created_at < NOW() - make_interval(days => $1)`,
+        [days_old]
+      );
 
-    // Delete old completed orders (no restaurant_id, single restaurant setup)
-    const cleanupSql = `
-      DELETE o FROM \`Order\` o
-      WHERE o.status IN ('served', 'cancelled')
-        AND o.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
-    `;
+      // Clean up old client sessions
+      await client.query('DELETE FROM InternalClient WHERE created_at < NOW() - make_interval(days => $1)', [days_old]);
+      await client.query('DELETE FROM ExternalClient WHERE created_at < NOW() - make_interval(days => $1)', [days_old]);
 
-    const result = await db.query(cleanupSql, [days_old]);
-
-    // Clean up old client sessions
-    await db.query('DELETE FROM InternalClient WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)', [days_old]);
-    await db.query('DELETE FROM ExternalClient WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)', [days_old]);
-
-    await db.query('COMMIT');
+      return result.rowCount;
+    });
 
     res.status(200).json({
       message: 'Cleanup completed successfully',
-      orders_deleted: result[0].affectedRows
+      orders_deleted: ordersDeleted
     });
   } catch (err) {
-    await db.query('ROLLBACK');
     console.error('Error in POST /api/restaurant/maintenance/cleanup:', err);
     res.status(500).json({ error: 'Failed to cleanup old data', details: err.message });
   }

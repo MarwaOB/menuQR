@@ -12,11 +12,13 @@ export default function AdminLoginForm() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // Success notice passed by Register / ResetPassword after redirecting here.
+  const notice = location.state?.message;
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/';
+      const from = location.state?.from?.pathname || '/menus';
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, location]);
@@ -55,12 +57,12 @@ export default function AdminLoginForm() {
       
       if (result.success) {
         // Redirect to the page they were trying to access or dashboard
-        const from = location.state?.from?.pathname || '/';
+        const from = location.state?.from?.pathname || '/menus';
         navigate(from, { replace: true });
       } else {
         setLoginError(result.error || 'Login failed');
       }
-    } catch (err) {
+    } catch {
       setLoginError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -72,6 +74,12 @@ export default function AdminLoginForm() {
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-800">Admin Login</h2>
         
+        {notice && !loginError && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg" role="status">
+            {notice}
+          </div>
+        )}
+
         {loginError && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {loginError}

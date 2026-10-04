@@ -21,7 +21,7 @@ export default function RegisterForm() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/menus', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -63,7 +63,7 @@ export default function RegisterForm() {
     }
 
     // Phone validation (optional but if provided, should be valid)
-    if (formData.phone && !/^\+?[\d\s\-\(\)]+$/.test(formData.phone)) {
+    if (formData.phone && !/^\+?[\d\s\-().]{6,20}$/.test(formData.phone.trim())) {
       newErrors.phone = 'Please enter a valid phone number.';
       isValid = false;
     }
@@ -93,8 +93,9 @@ export default function RegisterForm() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone_number: formData.phone || null,  // Changed from phone to phone_number
-        address: formData.address || null
+        // Empty optional fields are omitted rather than sent as null.
+        phone_number: formData.phone.trim() || undefined,
+        address: formData.address.trim() || undefined
       });
       
       if (result.success) {
@@ -107,7 +108,7 @@ export default function RegisterForm() {
       } else {
         setRegisterError(result.error || 'Registration failed');
       }
-    } catch (err) {
+    } catch {
       setRegisterError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

@@ -2,28 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaDownload, FaTimes, FaWifi, FaGlobe } from 'react-icons/fa';
 import QRCode from 'qrcode';
-import config from '../config';
 import MyButton from './UI/Button';
 
-// Helper function to get base URL
-const getBaseUrl = () => {
-  // Get the base URL and ensure it doesn't end with a slash
-  let baseUrl = config.API_BASE_URL || '';
-  
-  // Remove trailing slash if it exists
-  if (baseUrl.endsWith('/')) {
-    baseUrl = baseUrl.slice(0, -1);
-  }
-  
-  // Remove '/api' suffix if it exists
-  if (baseUrl.endsWith('/api')) {
-    baseUrl = baseUrl.slice(0, -4);
-  }
-  
-  return baseUrl;
-};
-
-const QRCodeModal = ({ isOpen, onClose, menuName, menuData }) => {
+const QRCodeModal = ({ isOpen, onClose, menuName }) => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const localCanvasRef = useRef(null);

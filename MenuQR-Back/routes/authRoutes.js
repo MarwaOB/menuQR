@@ -62,14 +62,12 @@ router.post('/register', validateRegistration, async (req, res) => {
     const restaurantId = rows[0].id;
     console.log('Restaurant registered successfully:', restaurantId);
     
-    // Send welcome email (optional - don't fail registration if email fails)
-    try {
-      await emailService.sendWelcomeEmail(email, name);
-      console.log(`Welcome email sent to ${email}`);
-    } catch (emailError) {
-      console.error('Failed to send welcome email:', emailError);
-      // Continue anyway - don't fail registration due to email issues
-    }
+    // Send welcome email in the background — a slow or misconfigured SMTP
+    // server must never block or fail registration.
+    Promise.resolve()
+      .then(() => emailService.sendWelcomeEmail(email, name))
+      .then(() => console.log(`Welcome email sent to ${email}`))
+      .catch((emailError) => console.error('Failed to send welcome email:', emailError));
     
     res.status(201).json({
       message: 'Restaurant registered successfully',
@@ -141,7 +139,7 @@ router.post('/forgot-password', validateForgotPassword, async (req, res) => {
 
   try {
     // Check if email exists
-    const [rows] = await db.query('SELECT id, name, email FROM Restaurant WHERE email = ?', [sanitizedEmail]);
+    const { rows } = await db.query('SELECT id, name, email FROM Restaurant WHERE email = $1', [sanitizedEmail]);
     
     if (rows.length === 0) {
       // Don't reveal if email exists or not for security
@@ -158,7 +156,7 @@ router.post('/forgot-password', validateForgotPassword, async (req, res) => {
 
     // Store reset token in database
     await db.query(
-      'UPDATE Restaurant SET reset_token = ?, reset_token_expiry = ? WHERE id = ?',
+      'UPDATE Restaurant SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
       [resetToken, resetTokenExpiry, restaurant.id]
     );
 
@@ -200,8 +198,8 @@ router.post('/reset-password', validateResetPassword, async (req, res) => {
 
   try {
     // Find restaurant with valid reset token
-    const [rows] = await db.query(
-      'SELECT id, email FROM Restaurant WHERE reset_token = ? AND reset_token_expiry > NOW()',
+    const { rows } = await db.query(
+      'SELECT id, email FROM Restaurant WHERE reset_token = $1 AND reset_token_expiry > NOW()',
       [token]
     );
     
@@ -216,7 +214,7 @@ router.post('/reset-password', validateResetPassword, async (req, res) => {
 
     // Update password and clear reset token
     await db.query(
-      'UPDATE Restaurant SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?',
+      'UPDATE Restaurant SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
       [hashedPassword, restaurant.id]
     );
 
@@ -242,8 +240,8 @@ router.post('/verify-reset-token', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query(
-      'SELECT email FROM Restaurant WHERE reset_token = ? AND reset_token_expiry > NOW()',
+    const { rows } = await db.query(
+      'SELECT email FROM Restaurant WHERE reset_token = $1 AND reset_token_expiry > NOW()',
       [token]
     );
     

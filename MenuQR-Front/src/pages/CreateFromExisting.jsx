@@ -115,7 +115,7 @@ const CreateFromExistingMenuPage = () => {
       setSelectedCategory('All');
       setEditingDishId(null);
       setShowAddDishForm(false);
-    } catch (error) {
+    } catch {
       alert(t('error_loading_menu') || 'Error loading menu details');
     } finally {
       setIsLoading(false);

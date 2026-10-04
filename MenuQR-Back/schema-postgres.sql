@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS Restaurant (
     address TEXT,
     description TEXT,
     token VARCHAR(255),
+    reset_token VARCHAR(255),
+    reset_token_expiry TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

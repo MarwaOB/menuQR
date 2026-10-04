@@ -1,22 +1,22 @@
 'use client';
 
-import React from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
-import { FaTimesCircle } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import { ImageUp, X } from 'lucide-react';
+
+const MAX_SIZE = 5 * 1024 * 1024; // matches the backend limit
 
 const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview, disabled = false }) => {
   const { t } = useTranslation();
 
-  const onDrop = (acceptedFiles) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      alert(t('file_too_large'));
+  const onDrop = (acceptedFiles, rejected) => {
+    if (rejected?.length) {
+      toast.error(t('file_too_large'));
       return;
     }
-
+    const file = acceptedFiles[0];
+    if (!file) return;
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
   };
@@ -30,41 +30,43 @@ const LogoUploader = ({ logoPreview, setLogoFile, setLogoPreview, disabled = fal
     onDrop,
     accept: { 'image/*': [] },
     multiple: false,
-    maxSize: 5 * 1024 * 1024, // 5MB limit to match backend
+    maxSize: MAX_SIZE,
     disabled,
   });
 
   return (
-    <div>
-      {/*<label className="block text-sm font-medium text-gray-700 mb-2">
-        {t('upload_logo')}
-      </label>*/}
+    <div className="space-y-4">
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-4 transition ${
-          disabled 
-            ? 'bg-gray-100 border-gray-200 cursor-not-allowed' 
-            : isDragActive 
-              ? 'border-yellow-500 bg-yellow-50 cursor-pointer' 
-              : 'border-gray-300 cursor-pointer hover:border-yellow-400'
+        className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 py-8 text-center transition-colors duration-200 ${
+          disabled
+            ? 'cursor-not-allowed border-line bg-cream/50 opacity-60'
+            : isDragActive
+              ? 'cursor-pointer border-paprika bg-paprika-soft/50'
+              : 'cursor-pointer border-ink/25 hover:border-paprika hover:bg-cream/60'
         }`}
       >
-        <input {...getInputProps()} />
-        <p className="text-sm text-gray-600 text-center">
-          {isDragActive ? t('drop_logo_here') : t('drag_or_click')}
-        </p>
+        <input {...getInputProps()} aria-label={t('upload_logo')} />
+        <ImageUp size={22} strokeWidth={1.5} className="text-paprika" aria-hidden="true" />
+        <p className="text-sm font-medium">{isDragActive ? t('drop_logo_here') : t('drag_or_click')}</p>
+        <p className="text-xs text-muted">{t('dashboard.settings.brand_hint')}</p>
       </div>
 
       {logoPreview && (
-        <div className="mt-4 w-fit">
-          <p className="text-sm text-gray-600 mb-1">{t('preview')}:</p>
-          <div className="w-24 h-24">
-            <img
-              src={logoPreview}
-              alt="Logo Preview"
-              className="w-full h-full object-contain rounded-md shadow border"
-            />
+        <div className="flex items-center gap-4">
+          <div className="relative h-20 w-20 shrink-0 rounded-2xl border border-line bg-paper p-2">
+            <img src={logoPreview} alt={t('preview')} className="h-full w-full object-contain" />
           </div>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+            >
+              <X size={16} strokeWidth={1.75} aria-hidden="true" />
+              {t('remove_logo')}
+            </button>
+          )}
         </div>
       )}
     </div>

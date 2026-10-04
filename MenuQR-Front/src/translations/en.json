@@ -20,7 +20,7 @@
   "remove_logo": "Remove Logo",
   "delete": "Delete",
   "currency": "DZD",
-   "menu_number": "Menu Number",
+  "menu_number": "Menu Number",
   "created_at": "Created At",
   "see_more": "See More",
   "add_from_existing": "Add from existing menus",
@@ -84,8 +84,6 @@
   "error_deleting_dish": "Error deleting dish",
   "confirm_delete_dish": "Delete Dish?",
   "delete_dish_warning": "Are you sure you want to delete \"{{dishName}}\"? This action cannot be undone.",
- 
-  
   "orders_page": {
     "orders": "Orders",
     "order": "Order",
@@ -129,7 +127,9 @@
     "cancel": "Cancel",
     "thank_you_for_your_order": "Thank you for your order!",
     "error_generating_receipt": "Failed to generate receipt. Please try again.",
-    "unknown_error": "Unknown error occurred"
+    "unknown_error": "Unknown error occurred",
+    "order_notes": "Order notes",
+    "unnamed_item": "Unnamed item"
   },
   "analytics_page": {
     "select_date_range": "Select Date Range",
@@ -173,7 +173,6 @@
     "price_required": "Price is required",
     "section_required": "Section is required"
   },
-  
   "menu_card": {
     "menu": "Menu",
     "created_on": "Created on",
@@ -181,22 +180,15 @@
     "see_more": "See More",
     "delete_menu": "Delete Menu"
   },
-  
   "qr_modal": {
-    "qr_code_generated": "QR Code Generated!",
-    "menu_created_successfully": "Your menu \"{{menuName}}\" has been created successfully!",
-    "scan_qr_code": "Scan this QR code to view your menu:",
-    "download_qr": "Download QR Code",
-    "close": "Close",
     "scan_to_view_menu": "Scan to view menu",
     "local_network": "Local Network",
     "online_public": "Online (Public)",
     "download_lan_qr": "Download LAN QR",
     "download_online_qr": "Download Online QR",
     "tip": "Tip: Use the LAN QR for customers on your WiFi network, and the Online QR for customers using mobile data.",
-    "qr_code_instruction": "Scan this QR code with a smartphone camera to view the menu"
+    "qr_code_description": "Scan this QR code with a smartphone camera to view the menu"
   },
-  
   "generate_qr_code": "Generate QR Code",
   "restaurant_menu_qr_code": "Restaurant Menu QR Code",
   "generating_qr": "Generating QR Code",
@@ -222,16 +214,6 @@
     "required_field": "This field is required",
     "section": "Section",
     "menu_name_required": "Menu name is required"
-  },
-  
-  "qr_modal": {
-    "scan_to_view_menu": "Scan to view menu",
-    "local_network": "Local Network",
-    "online_public": "Online (Public)",
-    "download_lan_qr": "Download LAN QR",
-    "download_online_qr": "Download Online QR",
-    "tip": "Tip: Use the LAN QR for customers on your WiFi network, and the Online QR for customers using mobile data.",
-    "qr_code_description": "Scan this QR code with a smartphone camera to view the menu"
   },
   "customer": {
     "restaurant_menu": "Restaurant Menu",
@@ -265,5 +247,250 @@
     "pickup_time_placeholder": "Select pickup time",
     "change_order_type": "← Change order type",
     "enter_table_number": "Enter your table number"
+  },
+  "home": {
+    "nav": {
+      "home": "Home",
+      "menu": "Menu",
+      "about": "About",
+      "gallery": "Gallery",
+      "contact": "Contact",
+      "order": "Order now",
+      "open_menu": "Open menu",
+      "close_menu": "Close menu",
+      "skip": "Skip to content",
+      "main": "Main",
+      "language": "العربية",
+      "your_order": "Your order"
+    },
+    "loader": "Setting the table",
+    "hero": {
+      "eyebrow": "Dine in · Delivery · Daily menu",
+      "line1": "Crafted to be",
+      "line2": "remembered.",
+      "lead": "A menu prepared fresh in our kitchen every day. Order from your table, or have it brought to your door.",
+      "cta_order": "Order now",
+      "cta_menu": "Explore the menu",
+      "scroll": "Scroll to discover",
+      "today": "Today's menu"
+    },
+    "signature": {
+      "eyebrow": "Featured today",
+      "eyebrow_signature": "Signature",
+      "from": "From",
+      "order": "Order this",
+      "fallback_title": "Today's plate",
+      "fallback_text": "Our kitchen writes a new menu every day. Open it to see what's being served right now.",
+      "see_menu": "See today's menu"
+    },
+    "story": {
+      "eyebrow": "Our story",
+      "l1": "Fresh ingredients.",
+      "l2": "Honest cooking.",
+      "l3": "Made for sharing.",
+      "p1_title": "A new menu, every day",
+      "p1": "The menu is written daily, so what you order is what the kitchen is cooking today.",
+      "p2_title": "Ordered your way",
+      "p2": "Scan the code at your table to order, or order online for delivery.",
+      "p3_title": "Straight to the kitchen",
+      "p3": "Your order reaches the kitchen the moment you place it."
+    },
+    "menu": {
+      "eyebrow": "On the menu",
+      "title": "A taste of today",
+      "view_all": "View the full menu",
+      "order": "Order",
+      "empty_title": "Today's menu is being prepared",
+      "empty_text": "Check back shortly — or open the ordering page to see the latest.",
+      "error": "We couldn't load the menu right now.",
+      "retry": "Try again",
+      "loading": "Loading the menu"
+    },
+    "craft": {
+      "eyebrow": "The craft",
+      "title": "From the market to your plate",
+      "s1_title": "Fresh ingredients",
+      "s1": "Everything starts with produce chosen for the day's menu.",
+      "s2_title": "Carefully prepared",
+      "s2": "Cooked to order in our kitchen, plate by plate.",
+      "s3_title": "Serving you",
+      "s3": "At your table or at your door — exactly how you want it."
+    },
+    "experience": {
+      "eyebrow": "The experience",
+      "title": "Two ways to enjoy",
+      "dine_title": "At the table",
+      "dine_text": "Take a seat, scan your table's code and order when you're ready. We bring it to you.",
+      "deliv_title": "At your door",
+      "deliv_text": "Order online, leave your address and we deliver it to you.",
+      "cta_dine": "Order to my table",
+      "cta_deliv": "Order for delivery"
+    },
+    "gallery": {
+      "eyebrow": "Atmosphere",
+      "title": "Inside our kitchen"
+    },
+    "reviews": {
+      "eyebrow": "Kind words",
+      "title": "What our guests say",
+      "prev": "Previous review",
+      "next": "Next review",
+      "rating": "{{n}} out of 5 stars",
+      "of": "{{current}} of {{total}}"
+    },
+    "cta": {
+      "l1": "Hungry",
+      "l2": "yet?",
+      "text": "Your table is waiting.",
+      "order": "Order now",
+      "menu": "View menu"
+    },
+    "footer": {
+      "tagline": "Fresh daily. Ordered your way.",
+      "explore": "Explore",
+      "visit": "Visit us",
+      "hours": "Hours",
+      "follow": "Follow",
+      "staff": "Staff login",
+      "rights": "All rights reserved.",
+      "order_online": "Order online",
+      "directions": "Get directions",
+      "top": "Back to top"
+    }
+  },
+  "order": {
+    "home": "Home",
+    "title": "Today's menu",
+    "menu_of": "Menu of {{date}}",
+    "search": "Search dishes…",
+    "search_label": "Search the menu",
+    "clear_search": "Clear search",
+    "all": "All",
+    "categories": "Menu categories",
+    "dishes": "{{n}} dishes",
+    "items": "{{n}} items",
+    "item_one": "1 item",
+    "add": "Add",
+    "add_named": "Add {{name}} to your order",
+    "view_order": "View order",
+    "your_order": "Your order",
+    "empty_cart": "Your order is empty",
+    "empty_cart_text": "Add a few dishes from the menu to get started.",
+    "browse": "Browse the menu",
+    "subtotal": "Subtotal",
+    "total": "Total",
+    "remove": "Remove",
+    "remove_named": "Remove {{name}}",
+    "decrease": "Decrease quantity of {{name}}",
+    "increase": "Increase quantity of {{name}}",
+    "quantity": "Quantity",
+    "order_type": "How would you like it?",
+    "continue": "Continue",
+    "back": "Back",
+    "place": "Place order",
+    "placing": "Placing order…",
+    "success_title": "Order placed",
+    "success_text": "Thank you! The kitchen has received your order.",
+    "new_order": "Back to the menu",
+    "no_results": "No dishes match “{{query}}”",
+    "no_results_hint": "Try another word or browse by category.",
+    "no_menu_title": "No menu today",
+    "no_menu_text": "There's no menu available right now. Please check back later or contact the restaurant.",
+    "refresh": "Refresh",
+    "back_home": "Back to home",
+    "error_title": "Something went wrong",
+    "error_load": "Failed to load the menu. Please check your connection and try again.",
+    "retry": "Try again",
+    "close": "Close",
+    "empty_menu_title": "The menu is empty",
+    "empty_menu_text": "No dishes have been added to today's menu yet.",
+    "cart_empty_err": "Your cart is empty",
+    "table_required": "Please enter your table number",
+    "address_required": "Please enter your delivery address",
+    "order_failed": "Failed to place order. Please try again.",
+    "phone_optional": "Phone number (optional)",
+    "step_review": "Review",
+    "step_details": "Details",
+    "in_order": "In your order"
+  },
+  "dashboard": {
+    "console": "Restaurant console",
+    "nav_label": "Dashboard",
+    "skip": "Skip to content",
+    "view_site": "View site",
+    "signed_in_as": "Signed in as",
+    "logout_confirm": "Log out of the dashboard?",
+    "close": "Close",
+    "retry": "Try again",
+    "refresh": "Refresh",
+    "updated_at": "Updated {{time}}",
+    "pages": {
+      "menus": {
+        "eyebrow": "Kitchen",
+        "title": "Menus",
+        "subtitle": "Build, review and publish the menus your guests order from."
+      },
+      "orders": {
+        "eyebrow": "Service",
+        "title": "Orders",
+        "subtitle": "Live tickets from tables and deliveries. Refreshes every 30 seconds."
+      },
+      "analytics": {
+        "eyebrow": "Insights",
+        "title": "Analytics",
+        "subtitle": "How the room and the kitchen performed over the selected period."
+      },
+      "settings": {
+        "eyebrow": "House",
+        "title": "Settings",
+        "subtitle": "The details guests see on your menu and receipts."
+      }
+    },
+    "menus": {
+      "count_one": "{{count}} menu",
+      "count_other": "{{count}} menus",
+      "latest": "Latest",
+      "open": "Open",
+      "existing_hint": "Start from a copy of a menu you already have.",
+      "scratch_hint": "Start with an empty menu and add dishes one by one.",
+      "deleted": "Menu deleted"
+    },
+    "orders": {
+      "count_one": "{{count}} order",
+      "count_other": "{{count}} orders",
+      "filter_label": "Filter by status",
+      "sort_by": "Sort by {{column}}",
+      "more_items": "+{{count}} more",
+      "updated": "Order marked as {{status}}",
+      "deleted": "Order deleted"
+    },
+    "analytics": {
+      "from": "From",
+      "to": "To",
+      "vs_previous": "vs previous period",
+      "no_revenue": "No revenue recorded in this period yet.",
+      "no_dishes": "No dishes have been ordered yet.",
+      "rank": "#",
+      "preset_7": "7 days",
+      "preset_30": "30 days",
+      "preset_90": "90 days",
+      "range_label": "Date range",
+      "share": "{{percent}}% of orders",
+      "table_view": "Daily revenue table",
+      "date": "Date"
+    },
+    "settings": {
+      "profile": "Restaurant profile",
+      "profile_hint": "Name and contact details.",
+      "brand": "Logo",
+      "brand_hint": "PNG, JPG or SVG, up to 5 MB.",
+      "about": "About",
+      "about_hint": "A short description shown to guests.",
+      "saving": "Saving…",
+      "uploading_logo": "Uploading logo…",
+      "saved": "Profile updated",
+      "logo_failed": "Could not upload the logo. Please try again.",
+      "save_failed": "Could not update the profile. Please try again."
+    }
   }
 }

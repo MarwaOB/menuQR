@@ -43,7 +43,7 @@ const apiRequest = async (endpoint, options = {}) => {
     
     try {
       data = await response.json();
-    } catch (jsonError) {
+    } catch {
       // If response is not JSON, use the status text as the error message
       if (!response.ok) {
         throw new Error(response.statusText || 'Request failed');
@@ -53,16 +53,20 @@ const apiRequest = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      // Handle authentication errors
-      if (response.status === 401 || response.status === 403) {
-        // Token is invalid or expired
+      // An expired/invalid session on a protected endpoint: drop the token and
+      // let AuthContext + ProtectedRoute send the user to /login. Auth
+      // endpoints (e.g. a wrong password on /auth/login also returns 401) and
+      // public pages must not be hard-redirected — that wiped the login error
+      // and kicked customers off the menu when a stale token was stored.
+      const isAuthEndpoint = endpoint.startsWith('/auth/');
+      const sentToken = Boolean(config.headers.Authorization);
+      if ((response.status === 401 || response.status === 403) && sentToken && !isAuthEndpoint) {
         localStorage.removeItem('authToken');
-        window.location.href = '/login';
-        throw new Error('Authentication required');
+        window.dispatchEvent(new Event('auth:expired'));
       }
-      
+
       // Create a custom error with response data
-      const error = new Error(data.error || `HTTP error! status: ${response.status}`);
+      const error = new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
       error.response = { data, status: response.status };
       throw error;
     }
@@ -153,9 +157,9 @@ export const restaurantAPI = {
   getBackup: () => apiRequest('/restaurant/backup'),
 
   cleanup(daysOld = 90) {
-    return apiRequest('/restaurant/cleanup', {
+    return apiRequest('/restaurant/maintenance/cleanup', {
       method: 'POST',
-      body: JSON.stringify({ days: daysOld })
+      body: JSON.stringify({ days_old: daysOld })
     });
   },
   

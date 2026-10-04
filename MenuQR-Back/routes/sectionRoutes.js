@@ -11,7 +11,7 @@ const { authenticateToken } = require('../middleware/auth');
 router.post('/add', authenticateToken, async (req, res) => {
   console.log('POST /api/section/add - Request received');
   console.log('Request body:', req.body);
-  
+
   const { name } = req.body;
 
   if (!name) {
@@ -21,14 +21,14 @@ router.post('/add', authenticateToken, async (req, res) => {
   try {
     const sql = 'INSERT INTO Section (name) VALUES ($1) RETURNING id';
     const { rows: [result] } = await db.query(sql, [name]);
-    
-    res.status(201).json({ 
-      message: 'Section created successfully', 
-      section_id: result.id 
+
+    res.status(201).json({
+      message: 'Section created successfully',
+      section_id: result.id
     });
   } catch (err) {
     console.error('Error in POST /api/section/add:', err);
-    if (err.code === 'ER_DUP_ENTRY') {
+    if (err.code === '23505') {
       res.status(409).json({ error: 'Section name already exists' });
     } else {
       res.status(500).json({ error: 'Failed to create section', details: err.message });
@@ -39,11 +39,11 @@ router.post('/add', authenticateToken, async (req, res) => {
 // Get all sections
 router.get('/allSections', async (req, res) => {
   console.log('GET /api/section/allSections - Request received');
-  
+
   try {
     const sql = 'SELECT * FROM Section ORDER BY name';
     const { rows } = await db.query(sql);
-    
+
     res.status(200).json(rows);
   } catch (err) {
     console.error('Error in GET /api/section/allSections:', err);
@@ -55,7 +55,7 @@ router.get('/allSections', async (req, res) => {
 router.post('/modify', authenticateToken, async (req, res) => {
   console.log('POST /api/section/modify - Request received');
   console.log('Request body:', req.body);
-  
+
   const { section_id, name } = req.body;
 
   if (!section_id || !name) {
@@ -65,7 +65,7 @@ router.post('/modify', authenticateToken, async (req, res) => {
   try {
     const sql = 'UPDATE Section SET name=$1 WHERE id=$2';
     await db.query(sql, [name, section_id]);
-    
+
     res.status(200).json({ message: 'Section updated successfully' });
   } catch (err) {
     console.error('Error in POST /api/section/modify:', err);
@@ -77,7 +77,7 @@ router.post('/modify', authenticateToken, async (req, res) => {
 router.post('/delete', authenticateToken, async (req, res) => {
   console.log('POST /api/section/delete - Request received');
   console.log('Request body:', req.body);
-  
+
   const { section_id } = req.body;
 
   if (!section_id) {
@@ -87,7 +87,7 @@ router.post('/delete', authenticateToken, async (req, res) => {
   try {
     const sql = 'DELETE FROM Section WHERE id=$1';
     await db.query(sql, [section_id]);
-    
+
     res.status(200).json({ message: 'Section deleted successfully' });
   } catch (err) {
     console.error('Error in POST /api/section/delete:', err);

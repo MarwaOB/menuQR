@@ -3,6 +3,7 @@ import { authAPI, restaurantAPI } from '../utils/api';
 
 const AuthContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook lives with its provider
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -30,9 +31,13 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
         } catch (error) {
           console.error('Auth initialization error:', error);
-          // Token is invalid, remove it
-          localStorage.removeItem('authToken');
-          setToken(null);
+          const status = error?.response?.status;
+          // Only a rejected token is discarded; a network hiccup (or the API
+          // waking up) shouldn't silently log the user out for good.
+          if (status === 401 || status === 403 || status === 404) {
+            localStorage.removeItem('authToken');
+            setToken(null);
+          }
           setUser(null);
         }
       }
@@ -40,6 +45,16 @@ export const AuthProvider = ({ children }) => {
     };
 
     initAuth();
+  }, []);
+
+  // api.js signals an expired session; clearing state lets ProtectedRoute redirect.
+  useEffect(() => {
+    const onExpired = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
   }, []);
 
   const login = async (email, password) => {

@@ -1,13 +1,14 @@
 'use client';
 
-export default function MyButton({ children, className = '', ...props }) {
+/**
+ * Legacy admin button. Colour comes from the caller's classes (or a `.btn-*`
+ * variant); this only sets the shared pill shape, size and feedback.
+ */
+export default function MyButton({ children, className = '', type = 'button', ...props }) {
   return (
     <button
-      className={`
-         active:scale-95 font-semibold py-2 px-5 rounded-xl 
-        shadow-md hover:shadow-lg transition-all duration-200 ease-in-out
-        ${className}
-      `}
+      type={type}
+      className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition-[background-color,color,transform] duration-200 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     >
       {children}

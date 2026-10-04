@@ -1,12 +1,11 @@
 'use client';
 
-import React from 'react';
-
-const InputField = ({ label, name, value, onChange, type = 'text', required = false }) => {
+const InputField = ({ label, name, value, onChange, type = 'text', required = false, disabled = false, autoComplete }) => {
   return (
     <div className="w-full">
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor={name} className="field-label">
         {label}
+        {required && <span className="ms-0.5 text-paprika" aria-hidden="true">*</span>}
       </label>
       <input
         id={name}
@@ -15,7 +14,9 @@ const InputField = ({ label, name, value, onChange, type = 'text', required = fa
         value={value}
         onChange={onChange}
         required={required}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 transition"
+        disabled={disabled}
+        autoComplete={autoComplete}
+        className="field"
       />
     </div>
   );

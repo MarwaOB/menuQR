@@ -4,9 +4,11 @@ const { body, validationResult } = require('express-validator');
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const details = errors.array();
     return res.status(400).json({
-      error: 'Validation failed',
-      details: errors.array()
+      // Surface the first concrete reason so the UI can show it directly.
+      error: details[0]?.msg || 'Validation failed',
+      details
     });
   }
   next();
@@ -18,7 +20,8 @@ const validateRegistration = [
     .trim()
     .isLength({ min: 2, max: 100 })
     .withMessage('Restaurant name must be between 2 and 100 characters')
-    .matches(/^[a-zA-Z0-9\s\-'&.]+$/)
+    // Any script (Arabic, French accents…), digits and common punctuation.
+    .matches(/^[\p{L}\p{M}\p{N}\s\-'&.,()]+$/u)
     .withMessage('Restaurant name contains invalid characters'),
     
   body('email')
@@ -35,24 +38,26 @@ const validateRegistration = [
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
     .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
     
+  // Optional fields: empty strings and null (sent by the register form) are skipped.
   body('phone_number')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
-    .matches(/^[\+]?[1-9][\d]{0,15}$/)
+    // e.g. 0555 12 34 56, +213 555-12-34-56, (021) 12 34 56
+    .matches(/^\+?[\d\s\-().]{6,20}$/)
     .withMessage('Please provide a valid phone number')
     .isLength({ max: 50 })
     .withMessage('Phone number must be less than 50 characters'),
-    
+
   body('address')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 500 })
     .withMessage('Address must be less than 500 characters')
-    .matches(/^[a-zA-Z0-9\s\-,.'#]+$/)
+    .matches(/^[\p{L}\p{M}\p{N}\s\-,.'#/°()]+$/u)
     .withMessage('Address contains invalid characters'),
-    
+
   body('description')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 1000 })
     .withMessage('Description must be less than 1000 characters'),

@@ -103,10 +103,10 @@ router.get('/menus/:menu_id/dishes', async (req, res) => {
       SELECT d.*, s.name as section_name 
       FROM Dish d 
       JOIN Section s ON d.section_id = s.id 
-      WHERE d.menu_id = ? 
+      WHERE d.menu_id = $1
       ORDER BY s.name, d.name
     `;
-    const [rows] = await db.query(sql, [menu_id]);
+    const { rows } = await db.query(sql, [menu_id]);
     
     res.status(200).json(rows);
   } catch (err) {
@@ -126,9 +126,9 @@ router.get('/:dish_id', async (req, res) => {
       SELECT d.*, s.name as section_name 
       FROM Dish d 
       JOIN Section s ON d.section_id = s.id 
-      WHERE d.id = ?
+      WHERE d.id = $1
     `;
-    const [rows] = await db.query(sql, [dish_id]);
+    const { rows } = await db.query(sql, [dish_id]);
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Dish not found' });
@@ -153,7 +153,7 @@ router.post('/modify', authenticateToken, async (req, res) => {
   }
 
   try {
-    const sql = 'UPDATE Dish SET name=?, description=?, price=?, section_id=? WHERE id=?';
+    const sql = 'UPDATE Dish SET name=$1, description=$2, price=$3, section_id=$4 WHERE id=$5';
     await db.query(sql, [name, description, price, section_id, dish_id]);
     
     res.status(200).json({ message: 'Dish updated successfully' });
@@ -176,7 +176,7 @@ router.post('/delete', authenticateToken, async (req, res) => {
 
   try {
     // Delete associated images first
-    const [images] = await db.query('SELECT * FROM DishImage WHERE dish_id = ?', [dish_id]);
+    const { rows: images } = await db.query('SELECT * FROM DishImage WHERE dish_id = $1', [dish_id]);
     const cloudinary = req.app.get('cloudinary');
     
     for (const image of images) {
@@ -191,7 +191,7 @@ router.post('/delete', authenticateToken, async (req, res) => {
 
     }
 
-    const sql = 'DELETE FROM Dish WHERE id=?';
+    const sql = 'DELETE FROM Dish WHERE id=$1';
     await db.query(sql, [dish_id]);
     
     res.status(200).json({ message: 'Dish deleted successfully' });
@@ -302,7 +302,7 @@ router.post('/image/remove', authenticateToken, async (req, res) => {
 
   try {
     // Get image info from DB
-    const [rows] = await db.query('SELECT * FROM DishImage WHERE dish_id = ? AND image_url = ?', [dish_id, image_url]);
+    const { rows } = await db.query('SELECT * FROM DishImage WHERE dish_id = $1 AND image_url = $2', [dish_id, image_url]);
     
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Image not found' });
@@ -323,7 +323,7 @@ if (localPath && fs.existsSync(localPath)) {
 
 
     // Delete from DB
-    await db.query('DELETE FROM DishImage WHERE dish_id = ? AND image_url = ?', [dish_id, image_url]);
+    await db.query('DELETE FROM DishImage WHERE dish_id = $1 AND image_url = $2', [dish_id, image_url]);
     
     res.status(200).json({ message: 'Dish image removed successfully' });
   } catch (err) {
@@ -350,25 +350,22 @@ router.post('/bulk_add', authenticateToken, async (req, res) => {
   }
 
   try {
-    await db.query('START TRANSACTION');
+    await db.withTransaction(async (client) => {
+      for (const dish of dishes) {
+        const { name, description, price, section_id } = dish;
+        if (!name || !section_id) {
+          throw new Error('Each dish must have name and section_id');
+        }
 
-    for (const dish of dishes) {
-      const { name, description, price, section_id } = dish;
-      if (!name || !section_id) {
-        throw new Error('Each dish must have name and section_id');
+        await client.query(
+          'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES ($1, $2, $3, $4, $5)',
+          [name, description, price, section_id, menu_id]
+        );
       }
-      
-      await db.query(
-        'INSERT INTO Dish (name, description, price, section_id, menu_id) VALUES (?, ?, ?, ?, ?)',
-        [name, description, price, section_id, menu_id]
-      );
-    }
+    });
 
-    await db.query('COMMIT');
-    
     res.status(201).json({ message: `${dishes.length} dishes added successfully` });
   } catch (err) {
-    await db.query('ROLLBACK');
     console.error('Error in POST /api/dish/bulk_add:', err);
     res.status(500).json({ error: 'Failed to bulk add dishes', details: err.message });
   }

@@ -312,7 +312,15 @@ const DishCardInput = ({ onSubmit, onCancel, initialData = null, sections = [] }
                   alt="Dish preview"
                   className="w-32 h-32 object-cover rounded-lg border border-gray-300"
                 />
-                
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white text-sm shadow hover:bg-red-600"
+                  aria-label={t('order.remove')}
+                  title={t('order.remove')}
+                >
+                  ×
+                </button>
               </div>
             )}
 

@@ -55,8 +55,14 @@ export default function ResetPasswordForm() {
       return false;
     }
 
-    if (formData.newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    // Same rules the API enforces.
+    if (formData.newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return false;
+    }
+
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.newPassword)) {
+      setError('Password must include a lowercase letter, an uppercase letter and a number');
       return false;
     }
 
@@ -79,7 +85,7 @@ export default function ResetPasswordForm() {
     setError('');
 
     try {
-      const result = await authAPI.resetPassword(token, formData.newPassword);
+      await authAPI.resetPassword(token, formData.newPassword);
       setResetSuccess(true);
       
       // Redirect to login after 3 seconds
